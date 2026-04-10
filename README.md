@@ -2,6 +2,10 @@
 
 A curated collection of [Agent Skills](https://agentskills.io/home) for Claude Code and other AI coding agents.
 
+## Repository
+
+GitHub: https://github.com/thonymg/skills
+
 ## What is a “Skill”?
 
 A skill is a small, self-contained prompt bundle (a `SKILL.md` + optional references/vocabulary) that teaches an agent:
@@ -22,13 +26,13 @@ Typical capabilities provided by skills in this repo:
 ## Installation
 
 ```bash
-pnpx skills add <owner>/<repo> --skill='*'
+pnpx skills add thonymg/skills --skill='*'
 ```
 
 Or install all skills globally:
 
 ```bash
-pnpx skills add <owner>/<repo> --skill='*' -g
+pnpx skills add thonymg/skills --skill='*' -g
 ```
 
 Learn more at [vercel-labs/skills](https://github.com/vercel-labs/skills).
