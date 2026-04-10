@@ -1,185 +1,117 @@
 ---
 name: naming-convention
-description: Applies and enforces a complete, structured naming convention system built on three layers: Syntax, Semantics, and Structured Grammar. Use when naming variables, functions, classes, files, or database columns; reviewing code for readability or consistency; choosing between camelCase, snake_case, PascalCase, or kebab-case; or when the user mentions naming, convention, rename, prefix, or suffix.
-metadata:
-  author: Anthony Michel
-  version: "2026.04.10"
+description: |
+  Applies and enforces a structured naming convention built on three layers:
+  Syntax (casing), Semantics (noun/verb roles), and Grammar (closed prefix+suffix vocabulary).
+
+  Trigger this skill whenever the user:
+  - Asks to name, rename, or validate a variable, function, class, method, file, or DB column
+  - Reviews code for readability or consistency
+  - Asks if a name is "correct", "good", or follows conventions
+  - Generates or refactors names in any language
+  - Uses words like: naming, convention, prefix, suffix, camelCase, snake_case, identifier
 ---
 
-# Skill: Naming Convention
+# Naming Convention
 
-## Vocabulary Files
+## How to apply this skill
 
-Always load the relevant vocabulary file(s) before naming or validating anything.
+**Step 1 — Identify what needs naming**
+Determine: language + element type (variable / method / class / file / DB column).
 
-| File | Contains |
-|:-----|:---------|
-| `vocabulary/prefixes.md` | Core approved action prefixes (verbs) |
-| `vocabulary/suffixes-entities.md` | Core business entity suffixes + collection suffixes |
-| `vocabulary/suffixes-attributes.md` | Core attribute suffixes (Id, Status, Amount, Date, etc.) |
-| `vocabulary/suffixes-infrastructure.md` | Core infrastructure suffixes (Service, Repository, etc.) |
-| `vocabulary/suffixes-ui.md` | Core UI component suffixes (Card, Modal, Form, Page, etc.) |
-| `vocabulary/custom.md` | **Project-specific words** — fill this with your own domain vocabulary |
+**Step 2 — Load the right vocabulary**
+Load only the file(s) for the element type. Always also read `vocabulary/custom.md`.
 
-> Load only the files relevant to the element being named. Always also check `vocabulary/custom.md` — it extends every core file. Custom entries carry the same authority as core entries.
+| Element type | Load |
+|:-------------|:-----|
+| Method or function | `vocabulary/prefixes.md` + entity file |
+| Variable or property | `vocabulary/suffixes-attributes.md` + `vocabulary/suffixes-entities.md` |
+| Class or module | `vocabulary/suffixes-infrastructure.md` + `vocabulary/suffixes-entities.md` |
+| UI component | `vocabulary/suffixes-ui.md` + `vocabulary/suffixes-entities.md` |
+| DB table or column | `vocabulary/suffixes-entities.md` + `vocabulary/suffixes-attributes.md` |
 
----
+If the user asks for examples or language-specific rules, load `references/examples-by-domain.md`.
+If the user asks how to add custom words via CLI, load `references/extending-vocabulary.md`.
 
-## Layer 1 — Syntax Rules
+**Step 3 — Pick the casing**
 
-One convention per element type, per language. Never mix within the same context.
+| Element | camelCase | PascalCase | snake_case | SCREAMING | kebab |
+|:--------|:---------:|:----------:|:----------:|:---------:|:-----:|
+| Variable / function (JS, Java, C#, Dart) | ✅ | | | | |
+| Class / type / component (all languages) | | ✅ | | | |
+| Variable / function (Python) | | | ✅ | | |
+| File / DB column (all languages) | | | ✅ | | |
+| Global constant | | | | ✅ | |
+| URL / CSS / route | | | | | ✅ |
 
-| Convention | Format | Mandatory For |
-|:-----------|:-------|:--------------|
-| **camelCase** | `firstWord` | Variables, functions, methods — JS/TS/Java/C#/Dart |
-| **PascalCase** | `FirstWord` | Classes, interfaces, components, types, enums — all languages |
-| **snake_case** | `first_word` | Variables & functions — Python; files & DB columns — all languages |
-| **SCREAMING_SNAKE_CASE** | `FIRST_WORD` | Global constants only — never ordinary variables |
-| **kebab-case** | `first-word` | URLs, CSS/HTML filenames, routes |
+**Step 4 — Build the name using a pattern**
 
-**Rules:**
-1. A project uses exactly **one** syntax convention per element type.
-2. Mixing camelCase and snake_case for the same element type is a violation.
-3. SCREAMING_SNAKE_CASE is exclusively reserved for immutable global constants.
+Pick the first pattern that fits:
 
----
+1. **Method acting on an entity** → `[Prefix] + [Entity]` — `fetchUser()`, `deleteOrder()`
+2. **Method acting on a property** → `[Prefix] + [Entity] + [Attribute]` — `getOrderStatus()`, `updateUserEmail()`
+3. **Boolean check** → `[is/has/can/validate] + [Entity] + [Attribute?]` — `isUserActive()`, `hasPermission()`
+4. **Collection retrieval** → `[Prefix] + [Entity] + [List/Page/Results/Batch]` — `fetchUserList()`, `listOrderPage()`
+5. **Cross-entity relation** → `[Prefix] + [Entity A] + To/From + [Entity B]` — `assignUserToOrder()`
+6. **Architectural class** → `[Entity] + [Infra Suffix]` — `UserService`, `OrderRepository`
+7. **UI component** → `[Entity] + [UI Suffix]` — `UserCard`, `PaymentForm`
+8. **Transfer object** → `[Action] + [Entity] + DTO` — `CreateOrderDTO`, `UpdateUserEmailDTO`
 
-## Layer 2 — Semantic Rules
-
-### Entities (Classes & Types)
-- Must be **substantive nouns** — they represent real-world concepts.
-- Never use verbs, gerunds, or adjectives as the primary class name.
-- `Order`, `Customer`, `Invoice` ✅ — `Ordering`, `ManageCustomer`, `UserActive` ❌
-
-### Actions (Methods & Functions)
-- Must **start with exactly one approved action prefix** (see `vocabulary/prefixes.md`).
-- The prefix must match the actual intent: `get` for reading, `create` for instantiation, `is`/`has` for booleans, etc.
-- Never use two actions in one name: `getAndSave` ❌ — split into two methods.
-
-### States (Variables & Properties)
-- Must use **at least one approved suffix** that describes the data.
-- Booleans must use an approved **verify prefix** (`is`, `has`, `can`, `should`…).
-- Including the unit in the name is mandatory when ambiguity is possible: `durationInSeconds`, `priceInEuros`.
-
----
-
-## Layer 3 — Structural Grammar Rules
-
-### Rule 1 — Closed Vocabulary
-Every word in a name must come from the approved vocabulary files.
-Using any word not listed is a **convention violation**.
-
-### Rule 2 — No Contextual Redundancy
-When a method belongs to an object, the object name must not be repeated in the method name.
-- `user.getName()` ✅ — `user.getUserName()` ❌
-- `order.getStatus()` ✅ — `order.getOrderStatus()` ❌
-
-### Rule 3 — One Prefix, One Responsibility
-A method name contains exactly one action prefix. One prefix = one responsibility.
-- `processRefund()` ✅ — `processAndSaveRefund()` ❌
-
-### Rule 4 — Construction Patterns
-Every name must follow exactly one of these patterns:
-
-| Pattern | Formula | Example |
-|:--------|:--------|:--------|
-| **Action on Entity** | `[Prefix] + [Entity]` | `fetchUser()`, `deleteOrder()` |
-| **Action on Attribute** | `[Prefix] + [Entity] + [Attribute]` | `getOrderStatus()`, `updateUserEmail()` |
-| **Boolean Check** | `[Verify Prefix] + [Entity] + [optional Attribute]` | `isUserActive()`, `hasPermission()` |
-| **Collection Action** | `[Prefix] + [Entity] + [Collection Suffix]` | `fetchProductList()`, `getOrderItems()` |
-| **Entity Relation** | `[Prefix] + [Entity A] + To/From + [Entity B]` | `assignUserToOrder()`, `removeItemFromCart()` |
-| **Architectural Class** | `[Entity] + [Infra Suffix]` | `UserService`, `OrderRepository` |
-| **UI Component** | `[Entity] + [UI Suffix]` | `UserCard`, `OrderListPage` |
-| **Transfer Object** | `[Action/Entity] + [Entity] + DTO/Schema` | `CreateOrderDTO`, `UserSchema` |
-
-### Rule 5 — Anti-Patterns (always forbidden)
-
-| ❌ Violation | ✅ Correction | Rule |
-|:------------|:------------|:-----|
-| `user.getUserName()` | `user.getName()` | No contextual redundancy |
-| `data`, `info`, `temp`, `x` | `orderStatus`, `userCount` | Every name needs an approved suffix |
-| `doSomething()`, `process()` | `processOrder()`, `executeRefund()` | No verb without an approved suffix |
-| `Manager`, `Handler` standalone | `OrderProcessor`, `PaymentGateway` | Infra suffix must pair with an entity |
-| `flag`, `status2`, `newValue` | `isEmailVerified`, `updatedStatus` | No numbering, no raw adjectives |
-| `getAndSaveUser()` | `getUser()` + `saveUser()` | One prefix = one responsibility |
-| `USER_DATA` as a variable | `userData` | SCREAMING_SNAKE_CASE for constants only |
-| Any word not in vocabulary files | Rebuild from approved vocabulary | Closed vocabulary rule |
+**Step 5 — Check for violations**
+Run through the Gotchas below before delivering the name.
 
 ---
 
-## Application Procedure
+## Semantic rules
 
-1. **Identify context** — language + element type (variable, method, class, file, DB column)
-2. **Load vocabulary** — open the relevant vocabulary file(s)
-3. **Apply syntax** — pick the correct case convention from Layer 1
-4. **Verify semantics** — class = noun, method = verb prefix, variable = noun suffix
-5. **Build the name** — select one prefix + one or more suffixes + apply a pattern from Rule 4
-6. **Check anti-patterns** — run through Rule 5
-7. **Explain** — always cite the specific rule that validates or invalidates the name
-
----
-
-## Reference Files
-
-- `vocabulary/prefixes.md` — core approved prefixes
-- `vocabulary/suffixes-entities.md` — core entity + collection suffixes
-- `vocabulary/suffixes-attributes.md` — core attribute suffixes
-- `vocabulary/suffixes-infrastructure.md` — core infrastructure suffixes
-- `vocabulary/suffixes-ui.md` — core UI component suffixes
-- `vocabulary/custom.md` — **your project vocabulary** (edit this file to extend the convention)
-- `references/examples-by-domain.md` — full code examples per domain
-- `references/language-specific-rules.md` — per-language rules table
+- **Classes and types** must be substantive nouns. Never verbs, gerunds, or adjectives.
+  `Order` ✅ — `Ordering` ❌ — `ManageUser` ❌
+- **Methods and functions** must start with exactly one approved prefix.
+  One prefix = one responsibility. `processRefund()` ✅ — `processAndSaveRefund()` ❌
+- **Variables and properties** must end with an approved suffix.
+  Booleans must open with a verify prefix: `isActive`, `hasPermission`, `canEdit`.
+  Include the unit when ambiguity is possible: `durationInSeconds`, not `duration`.
 
 ---
 
-## Extending the Vocabulary (CLI)
+## Gotchas
 
-When the user asks to add words, or uses a word not in the core vocabulary, help them register it in `vocabulary/custom.md` using Claude CLI.
+These are the mistakes that occur most often. Check each one before delivering a name.
 
-### Add a single word
-```bash
-# Add a prefix
-claude "Add the prefix 'publish' (WRITE category) to vocabulary/custom.md: make a draft entity publicly visible"
+- **Contextual redundancy** — when a method belongs to an object, never repeat the object name inside the method. `user.getUserName()` → `user.getName()`. The object already provides the context.
+- **"data", "info", "temp", "x"** — these words are not in the vocabulary and are always forbidden. `getData()` → `fetchUserList()`. `info` → `userSummary`. Every name must contain an approved suffix.
+- **Standalone infra suffix** — `Manager`, `Handler`, `Helper` alone are violations. They must be paired with an entity: `ErrorHandler`, `AuthHelper`, `OrderProcessor`.
+- **Numbering and raw adjectives** — `status2`, `newValue`, `flag` are forbidden. Use the actual concept: `updatedOrderStatus`, `isEmailVerified`.
+- **SCREAMING_SNAKE_CASE on a variable** — `USER_DATA` is a violation if it is not a true immutable constant. Use `userData`.
+- **Word outside the vocabulary** — if a word does not appear in a vocabulary file or in `custom.md`, it cannot be used. Add it to `custom.md` first, then use it.
 
-# Add an entity suffix
-claude "Add the entity suffix 'Appointment' to vocabulary/custom.md: a scheduled meeting between a user and a provider"
+---
 
-# Add an attribute suffix
-claude "Add the attribute suffix 'Dosage' to vocabulary/custom.md: the prescribed amount of a medication"
+## Reference files
 
-# Add an infrastructure suffix
-claude "Add the infrastructure suffix 'UseCase' to vocabulary/custom.md: a single application use case (Clean Architecture)"
+Load these only when needed — do not load them for every request.
 
-# Add a UI suffix
-claude "Add the UI suffix 'Chip' to vocabulary/custom.md: a compact interactive tag or filter element"
-```
+- `vocabulary/custom.md` — project-specific words (always check this)
+- `references/examples-by-domain.md` — load when the user asks for examples
+- `references/extending-vocabulary.md` — load when the user wants to add words via CLI
+- `references/language-specific-rules.md` — load when the user asks about a specific language
 
-### Add multiple words at once
-```bash
-claude "Add these entity suffixes to vocabulary/custom.md:
-- Appointment: a scheduled meeting between a user and a provider
-- Prescription: a medical order issued by a doctor
-- Patient: a registered healthcare user"
-```
+---
 
-### Review, remove, or audit
-```bash
-# Show all custom words
-claude "Show me everything in vocabulary/custom.md"
+## Bootstrapping from an existing type system
 
-# Remove a word
-claude "Remove the entity suffix 'Appointment' from vocabulary/custom.md"
+When the user provides existing code (types, interfaces, classes, enums, DB schema, OpenAPI spec, or any file with names), extract the convention from it instead of starting from the core vocabulary.
 
-# Audit — check if any name in a file uses words not in the vocabulary
-claude "Audit naming-convention vocabulary against my codebase file src/services/userService.ts"
-```
+Load `references/bootstrap-from-types.md` for the full extraction procedure.
 
-### When to add vs. reuse a core word
+Trigger phrases: "I already have types", "based on my existing code", "extract from my schema", "derive the convention from", "use my codebase as the base", "here are my existing files".
 
-| Situation | Action |
-|:----------|:-------|
-| Concept has no equivalent in core vocabulary | Add to `custom.md` |
-| Project uses a specific arch pattern (`UseCase`, `Saga`, `Command`) | Add to `custom.md` |
-| UI component specific to the design system (`Chip`, `Snackbar`, `FAB`) | Add to `custom.md` |
-| A core word already covers the concept (`Setting` ≈ `Preference`) | Use the core word |
-| The word is a synonym of an existing entry | Use the canonical word |
+---
+
+## Bootstrapping from an existing type system
+
+When the user provides existing code (types, interfaces, classes, enums, DB schema, OpenAPI spec, or any file with names), extract the convention from it instead of starting from the core vocabulary.
+
+Load `references/bootstrap-from-types.md` for the full extraction procedure.
+
+Trigger phrases: "I already have types", "based on my existing code", "extract from my schema", "derive the convention from", "use my codebase as the base", "here are my existing files".
