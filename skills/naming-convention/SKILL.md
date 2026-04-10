@@ -1,6 +1,6 @@
 ---
 name: naming-convention
-description: |
+description: The types, schema, or code files to derive the naming convention from (optional)
   Applies and enforces a structured naming convention built on three layers:
   Syntax (casing), Semantics (noun/verb roles), and Grammar (closed prefix+suffix vocabulary).
 
