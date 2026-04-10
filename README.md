@@ -27,12 +27,16 @@ Typical capabilities provided by skills in this repo:
 
 ```bash
 pnpx skills add thonymg/skills --skill='*'
+npx skills add thonymg/skills --skill='*'
+bunx skills add thonymg/skills --skill='*'
 ```
 
 Or install all skills globally:
 
 ```bash
 pnpx skills add thonymg/skills --skill='*' -g
+npx skills add thonymg/skills --skill='*' -g
+bunx skills add thonymg/skills --skill='*' -g
 ```
 
 Learn more at [vercel-labs/skills](https://github.com/vercel-labs/skills).
