@@ -1,7 +1,12 @@
 ---
 name: naming-convention
 description: The types, schema, or code files to derive the naming convention from (optional)
-  Applies and enforces a structured naming convention built on three layers:
+
+---
+
+# Naming Convention
+
+Applies and enforces a structured naming convention built on three layers:
   Syntax (casing), Semantics (noun/verb roles), and Grammar (closed prefix+suffix vocabulary).
 
   Trigger this skill whenever the user:
@@ -10,9 +15,6 @@ description: The types, schema, or code files to derive the naming convention fr
   - Asks if a name is "correct", "good", or follows conventions
   - Generates or refactors names in any language
   - Uses words like: naming, convention, prefix, suffix, camelCase, snake_case, identifier
----
-
-# Naming Convention
 
 ## How to apply this skill
 
