@@ -1,321 +1,233 @@
 # Examples by Domain
 
-All examples use ONLY approved prefixes and suffixes from Layer 3.
+All examples demonstrate patterns using the approved vocabulary.
+Syntax (camelCase vs snake_case) adapts to the language — the patterns are universal.
 
 ---
 
-## Backend (Node.js / TypeScript)
+## Classes & Architectural Roles
 
-### Classes
-```typescript
-// ✅ [Entity Suffix] + [Infra Suffix]
-class UserService { }
-class OrderRepository { }
-class PaymentGateway { }
-class InvoiceProcessor { }
-class EmailClient { }
-class AuthMiddleware { }
-class UserMapper { }
-class OrderValidator { }
+Pattern: `[Entity] + [Infra Suffix]`
 
-// ❌ Forbidden — words outside approved vocabulary
-class DataManager { }      // "Manager" not in infra suffixes as standalone
-class UserHelper { }       // only valid paired: AuthHelper, FormatHelper
-class OrderHandler { }     // "Handler" needs entity: ErrorHandler, EventHandler
 ```
-
-### Methods
-```typescript
-// ✅ [Action Prefix] + [Entity Suffix]
-getUserById(id: string): User
-fetchOrdersByStatus(status: OrderStatus): Order[]
-calculateOrderTotal(orderId: string): number
-updateUserEmail(userId: string, email: string): void
-deleteExpiredSessions(): void
-isUserAdmin(userId: string): boolean
-hasPermission(userId: string, permission: string): boolean
-validateEmail(email: string): boolean
-generateToken(userId: string): string
-processRefund(orderId: string): Refund
-
-// ✅ [Action Prefix] + [Entity A] + To + [Entity B]
-assignUserToOrder(userId: string, orderId: string): void
-addItemToCart(itemId: string, cartId: string): void
-removeItemFromCart(itemId: string, cartId: string): void
-
-// ❌ Forbidden
-user.getUserName()     → user.getName()        // contextual redundancy
-doProcess()            → processOrder()        // verb without approved suffix
-handleData()           → parseUserProfile()    // handle = events/UI actions only
-getData()              → fetchUser()           // "data" not in suffix list
-```
-
-### Variables
-```typescript
-// ✅ [optional boolean prefix] + [Entity or Attribute Suffix]
-const totalAmount: number = 0
-const orderStatus: OrderStatus = OrderStatus.PENDING
-const isEmailVerified: boolean = false
-const userCount: number = 0
-const sessionToken: string = ''
-
-// Constants (SCREAMING_SNAKE_CASE)
-const MAX_RETRY_COUNT = 3
-const API_BASE_URL = 'https://api.example.com'
-const DEFAULT_SESSION_DURATION = 3600
-
-// ❌ Forbidden
-const x = 0             // no suffix
-const data = {}         // "data" not in suffix list
-const flag = false      // raw adjective — use isActive, hasPermission
-const temp = getUser()  // "temp" not in suffix list
-```
-
----
-
-## Frontend (React / TypeScript)
-
-### Components
-```tsx
-// ✅ [Entity Suffix] + [UI Suffix]
-<UserCard />
-<OrderListPage />
-<ProductCarousel />
-<CheckoutStepper />
-<PaymentForm />
-<DeleteOrderModal />
-<StatusBadge />
-<UserAvatar />
-<OrderTimeline />
-<NotificationToast />
-
-// ❌ Forbidden
-<userCard />          // must be PascalCase
-<ShowUserInfo />      // verb as component name
-<CardComponent />     // "Component" not in UI suffix list
-```
-
-### Event Handlers
-```tsx
-// ✅ handle + [Entity Suffix] + [optional UI Suffix or Attribute]
-const handleSubmitButton = () => { }
-const handleEmailInputChange = (e) => { }
-const handleDeleteOrderModal = () => { }
-const handleCartItemRemove = (id: string) => { }
-
-// Shorter form when entity is clear from context:
-const handleSubmit = () => { }
-const handleEmailChange = (e) => { }
-
-// ❌ Forbidden
-const click = () => { }        // no prefix
-const doAction = () => { }     // "do" not in prefix list
-const buttonHandler = () => { } // reversed — suffix comes after prefix
-```
-
-### State & Props
-```tsx
 // ✅
-const [isModalOpen, setIsModalOpen] = useState(false)
-const [userList, setUserList] = useState<User[]>([])
-const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
-const [orderStatus, setOrderStatus] = useState<OrderStatus>(OrderStatus.PENDING)
-
-interface UserCardProps {
-  userId: string
-  userName: string
-  isActive: boolean
-  onDeleteUser: (id: string) => void   // event prop: on + [Action Prefix] + [Entity]
-}
+UserService
+OrderRepository
+PaymentGateway
+InvoiceProcessor
+EmailClient
+AuthMiddleware
+UserMapper
+OrderValidator
 
 // ❌ Forbidden
-const [open, setOpen] = useState(false)       // "open" not in suffix list → use isModalOpen
-const [data, setData] = useState([])          // "data" not in suffix list
-const [id, setId] = useState(null)            // too vague → use selectedOrderId
-```
-
-### React Hooks
-```tsx
-// ✅ use + [Entity Suffix] — special React pattern
-const useAuth = () => { }
-const useCart = () => { }
-const useOrderList = () => { }
-const useUserProfile = () => { }
-const useNotification = () => { }
-const useSessionToken = () => { }
-
-// ❌ Forbidden
-const useData = () => { }     // "data" not in suffix list
-const useGet = () => { }      // prefix alone is not a suffix
+DataManager       // "Manager" standalone — not in vocabulary
+UserHelper        // "Helper" standalone — must be paired: AuthHelper
+OrderHandler      // "Handler" standalone — must be paired: ErrorHandler
 ```
 
 ---
 
-## Database (SQL)
+## Methods & Functions
 
-### Tables
+### Action on Entity — `[Prefix] + [Entity]`
+```
+// ✅
+fetchUser(id)
+createOrder(data)
+deleteSession(sessionId)
+processPayment(orderId)
+generateToken(userId)
+validateEmail(email)
+
+// ❌ Forbidden
+getUser_data()      // "data" not in vocabulary
+doProcess()         // "do" not a prefix
+manageOrder()       // "manage" not a prefix
+```
+
+### Action on Attribute — `[Prefix] + [Entity] + [Attribute]`
+```
+// ✅
+getUserId(user)
+getOrderStatus(orderId)
+updateUserEmail(userId, email)
+setSessionToken(sessionId, token)
+calculateOrderTotal(orderId)
+countOrderItems(orderId)
+
+// ❌ Forbidden
+order.getOrderStatus()    // contextual redundancy — use order.getStatus()
+getUserInfo()             // "info" not in vocabulary — use getUserProfile()
+```
+
+### Boolean Check — `[Verify Prefix] + [Entity] + [optional Attribute]`
+```
+// ✅
+isUserActive(userId)
+hasPermission(userId, permission)
+canDeleteOrder(userId, orderId)
+validatePayload(payload)
+isSessionExpired(session)
+hasOrderItems(orderId)
+
+// ❌ Forbidden
+checkIfUserIsActive()    // "checkIf" — use is/has/can directly
+userActive()             // no prefix
+```
+
+### Collection Action — `[Prefix] + [Entity] + [Collection Suffix]`
+```
+// ✅
+fetchUserList()
+listOrdersByStatus(status)
+getOrderItems(orderId)
+fetchSearchResults(query)
+listTaskPage(page, limit)
+
+// ❌ Forbidden
+getUsers()         // ambiguous — prefer fetchUserList() or listUsers()
+getAllData()        // "data" not in vocabulary
+```
+
+### Entity Relation — `[Prefix] + [Entity A] + To/From + [Entity B]`
+```
+// ✅
+assignUserToOrder(userId, orderId)
+addItemToCart(itemId, cartId)
+removeItemFromCart(itemId, cartId)
+```
+
+---
+
+## Variables & Properties
+
+Pattern: `[optional Verify Prefix] + [Entity or Attribute Suffix]`
+
+```
+// ✅ — plain values
+totalAmount
+orderStatus
+sessionToken
+userCount
+taskPriority
+requestPayload
+
+// ✅ — booleans (must use verify prefix)
+isActive
+hasPermission
+canEdit
+isSessionExpired
+
+// ✅ — constants (SCREAMING_SNAKE_CASE)
+MAX_RETRY_COUNT
+DEFAULT_SESSION_DURATION
+API_BASE_URL
+
+// ❌ Forbidden
+x, d, tmp, info     // no suffix
+data                // "data" not in vocabulary
+flag                // raw word — use isActive, hasPermission
+status2             // no numbering
+USER_DATA           // SCREAMING_SNAKE_CASE for constants only
+```
+
+---
+
+## Data Contracts
+
+Pattern: `[Action or Entity] + [Entity] + [DTO / Schema / Enum]`
+
+```
+// ✅
+CreateOrderDTO
+UpdateUserEmailDTO
+UserSchema
+OrderStatusEnum
+PaymentTypeEnum
+
+// ❌ Forbidden
+OrderData           // "data" not in vocabulary — use OrderDTO
+NewUser             // adjective as prefix — use CreateUserDTO
+```
+
+---
+
+## Files & Modules
+
+Pattern: one file = one entity + one infra suffix (snake_case for Python/files, PascalCase for Java/C#)
+
+```
+// ✅ — snake_case (Python, Dart, DB migrations)
+user_service.py
+order_repository.py
+payment_gateway.py
+auth_middleware.py
+create_order_dto.py
+
+// ✅ — PascalCase (Java, C#, Kotlin)
+UserService.java
+OrderRepository.cs
+PaymentGateway.kt
+
+// ✅ — kebab-case (CSS, routes, HTML)
+user-profile.css
+order-list.html
+/api/user-orders
+
+// ❌ Forbidden
+userHelper.py           // camelCase for files
+DataManager.java        // "Manager" standalone
+order_handler_stuff.py  // "stuff" not in vocabulary
+```
+
+---
+
+## Database Tables & Columns
+
 ```sql
--- ✅ snake_case, plural of approved Entity Suffix
+-- ✅ Tables: snake_case, plural entity suffix
 users
 orders
 order_items
-products
-product_categories
-payment_transactions
-invoices
-subscriptions
-notifications
-audit_logs
 user_sessions
-user_roles
-permissions
+payment_logs
+task_batches
 
--- ❌ Forbidden
-User              -- PascalCase not valid in SQL
-orderData         -- "data" not in suffix list
-tbl_users         -- "tbl_" not in approved prefix list
-```
+-- ✅ Columns: snake_case, approved attribute suffix
+user_id
+order_status
+total_amount
+created_timestamp
+updated_timestamp
+is_active          -- boolean: is_ prefix
+has_paid           -- boolean: has_ prefix
+session_token
+request_payload
 
-### Columns
-```sql
--- ✅ snake_case, approved Attribute Suffix
-user_id           -- Id suffix
-user_name         -- Name suffix
-order_status      -- Status suffix
-total_amount      -- Amount suffix
-item_count        -- Count suffix
-created_timestamp -- Timestamp suffix
-updated_timestamp -- Timestamp suffix
-deleted_timestamp -- Timestamp suffix (soft delete)
-is_active         -- boolean: is_ + Attribute
-has_paid          -- boolean: has_ + Attribute
-token_value       -- Token + Value
-payload_hash      -- Payload + Hash
-
--- ❌ Forbidden
-status            -- ambiguous without entity context in joins
-flag              -- not in attribute suffix list
-dt                -- abbreviation, not in any list
-data              -- not in attribute suffix list
-```
-
-### Index & Constraint Naming
-```sql
--- ✅ [type]_[table]_[columns]
+-- ✅ Index & constraint naming: [type]_[table]_[column]
 idx_users_email
-idx_orders_created_timestamp
 fk_orders_user_id
 uq_users_email
-pk_users_id
 
 -- ❌ Forbidden
-index1
-my_index
-users_idx
+User               -- PascalCase invalid in SQL
+orderData          -- "data" not in vocabulary
+tbl_users          -- "tbl_" not in prefix list
+flag               -- not in vocabulary
+dt                 -- abbreviation
 ```
 
 ---
 
-## Mobile (Flutter / Dart)
+## Anti-Pattern Quick Reference
 
-### Widgets
-```dart
-// ✅ PascalCase: [Entity Suffix] + [UI Suffix]
-class UserCard extends StatelessWidget { }
-class OrderListItem extends StatelessWidget { }
-class PaymentForm extends StatefulWidget { }
-class CheckoutStepper extends StatefulWidget { }
-class NotificationBadge extends StatelessWidget { }
-class ProfileAvatar extends StatelessWidget { }
-
-// ❌ Forbidden
-class userCard extends StatelessWidget { }      // must be PascalCase
-class order_card extends StatelessWidget { }    // snake_case forbidden for classes
-```
-
-### State Methods
-```dart
-// ✅
-void handleConfirmOrder() { }
-Future<void> fetchUserOrders() async { }
-bool isOrderExpired(Order order) { }
-void updateCartItemQuantity(String itemId, int quantity) { }
-Future<void> processPayment(String orderId) async { }
-void resetForm() { }
-
-// ❌ Forbidden
-void click() { }              // no prefix
-Future<void> getData() async { } // "data" not in suffix list
-void do_() { }                // "do" not in prefix list
-```
-
-### Files
-```dart
-// ✅ snake_case: [entity_suffix]_[infra_suffix].dart
-user_service.dart
-order_repository.dart
-payment_gateway.dart
-auth_middleware.dart
-user_card.dart
-order_list_page.dart
-checkout_screen.dart
-
-// ❌ Forbidden
-UserService.dart         // PascalCase not valid for Dart files
-orderService.dart        // camelCase not valid for Dart files
-```
-
----
-
-## Python
-
-### Modules & Files
-```python
-# ✅ snake_case: entity_infra.py
-user_service.py
-order_repository.py
-payment_processor.py
-email_client.py
-auth_validator.py
-date_util.py
-
-# ❌ Forbidden
-UserService.py         # PascalCase for files
-orderService.py        # camelCase for files
-data_manager.py        # "manager" not in infra suffix list as standalone
-```
-
-### Classes
-```python
-# ✅ PascalCase: Entity + Infra Suffix
-class UserService: pass
-class OrderRepository: pass
-class PaymentProcessor: pass
-class InvoiceValidator: pass
-
-# Constants: SCREAMING_SNAKE_CASE
-MAX_CONNECTION_POOL = 10
-DEFAULT_SESSION_DURATION = 3600
-API_BASE_URL = "https://api.example.com"
-```
-
-### Functions & Variables
-```python
-# ✅ snake_case: prefix + entity/attribute suffix
-def get_user_by_id(user_id: str) -> User: ...
-def calculate_order_total(order_id: str) -> float: ...
-def is_email_valid(email: str) -> bool: ...
-def fetch_user_list() -> list[User]: ...
-def process_payment(order_id: str) -> Payment: ...
-
-user_count = 0
-order_status = "pending"
-is_authenticated = False
-session_token = ""
-
-# ❌ Forbidden
-def getUser(userId): ...        # camelCase in Python
-def doProcess(): ...            # "do" not in prefix list
-x = 0                           # no suffix
-d = {}                          # no suffix
-```
+| ❌ Bad | ✅ Good | Rule violated |
+|:------|:-------|:-------------|
+| `user.getUserName()` | `user.getName()` | Contextual redundancy |
+| `getData()` | `fetchUserList()` | "data" not in vocabulary |
+| `doProcess()` | `processOrder()` | "do" not a prefix |
+| `Manager`, `Handler` alone | `OrderProcessor`, `ErrorHandler` | Infra suffix needs entity |
+| `status2`, `newValue` | `orderStatus`, `updatedTimestamp` | No numbering or raw adjectives |
+| `getAndSaveUser()` | `getUser()` + `saveUser()` | One prefix per method |
+| `USER_DATA` (variable) | `userData` | SCREAMING_SNAKE_CASE for constants only |

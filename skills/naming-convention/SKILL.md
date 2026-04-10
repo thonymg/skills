@@ -1,22 +1,9 @@
 ---
 name: naming-convention
-description: |
-  Applies and enforces a complete, structured naming convention system built on three layers:
-  Syntax (writing style), Semantics (business meaning), and Structured Grammar
-  (closed prefix/suffix vocabulary + construction patterns).
-
-  Use this skill EVERY TIME the user mentions:
-  - Naming variables, functions, classes, methods, files, or database columns
-  - Reviewing or auditing code for readability or consistency
-  - Choosing between camelCase, snake_case, PascalCase, SCREAMING_SNAKE_CASE, or kebab-case
-  - Creating entities, actions, or states in a project
-  - Asking whether a name is "correct", "good", or "consistent"
-  - Generating clean code or refactoring existing names
-  - Any question containing: "name", "naming", "convention", "rename", "prefix", "suffix",
-    "camelCase", "snake_case", "PascalCase", "variable", "method", "class", "function", "identifier"
-
-  CRITICAL RULE: Every name MUST be constructed exclusively from the approved vocabulary
-  defined in the vocabulary/ files. No word outside those lists is permitted in a name.
+description: Applies and enforces a complete, structured naming convention system built on three layers: Syntax, Semantics, and Structured Grammar. Use when naming variables, functions, classes, files, or database columns; reviewing code for readability or consistency; choosing between camelCase, snake_case, PascalCase, or kebab-case; or when the user mentions naming, convention, rename, prefix, or suffix.
+metadata:
+  author: Anthony Michel
+  version: "2026.04.10"
 ---
 
 # Skill: Naming Convention
