@@ -46,6 +46,7 @@ Learn more at [vercel-labs/skills](https://github.com/vercel-labs/skills).
 | Skill | Description | Triggers |
 |-------|-------------|----------|
 | [naming-convention](skills/naming-convention) | Structured naming convention system — syntax, semantics, and grammar rules for variables, functions, classes, files, and more | naming, convention, prefix, suffix, camelCase, snake_case, identifier |
+| [archi-vide](skills/archi-vide) | Empty, strongly-typed architecture scaffolding — generates code stubs with minimal comments and clear boundaries | scaffold, skeleton, architecture, stubs, clean architecture, ports, adapters, repository |
 
 ## naming-convention — What it knows how to do
 
