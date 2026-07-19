@@ -1,0 +1,115 @@
+{
+  "skill": "archi-vide",
+  "description": "Éval de déclenchement et de conformité du skill archi-vide. expected_checks = regex devant matcher la réponse finale ; forbidden_patterns ne doivent PAS matcher.",
+  "cases": [
+    {
+      "id": "nominal-clean-archi-ts",
+      "prompt": "Scaffold a clean architecture for an order management feature in TypeScript, with empty implementations.",
+      "should_trigger": true,
+      "expected_checks": ["domain/", "ports/", "archi-[a-z-]*\\.md"]
+    },
+    {
+      "id": "nominal-repository-ts",
+      "prompt": "Generate the skeleton (no business logic) of a payment module using the repository pattern in TypeScript.",
+      "should_trigger": true,
+      "expected_checks": ["Repository", "(not implemented|empty)"]
+    },
+    {
+      "id": "nominal-ports-python",
+      "prompt": "Create empty stubs for a notification feature in Python with ports and adapters.",
+      "should_trigger": true,
+      "expected_checks": ["(Protocol|ports/)"]
+    },
+    {
+      "id": "nominal-dart-cart",
+      "prompt": "I want a strongly-typed empty architecture for a shopping cart feature in Dart.",
+      "should_trigger": true,
+      "expected_checks": ["[Cc]art"]
+    },
+    {
+      "id": "nominal-boundaries-ts",
+      "prompt": "Set up the module boundaries for a subscription billing feature, no implementation yet, in TypeScript.",
+      "should_trigger": true,
+      "expected_checks": ["(ports/|domain/)"]
+    },
+    {
+      "id": "nominal-archi-note",
+      "prompt": "Generate the file tree and architecture note for a messaging feature with empty code, in TypeScript.",
+      "should_trigger": true,
+      "expected_checks": ["archi-[a-z-]*\\.md"]
+    },
+    {
+      "id": "nominal-go-repository",
+      "prompt": "Scaffold a repository and service skeleton for a Team entity in Go.",
+      "should_trigger": true,
+      "expected_checks": ["interface"]
+    },
+    {
+      "id": "nominal-api-python",
+      "prompt": "Stub out a REST API layer for products with clean architecture boundaries, in Python.",
+      "should_trigger": true,
+      "expected_checks": ["(ports|adapter)"]
+    },
+    {
+      "id": "guard-no-implementation",
+      "prompt": "Scaffold the order feature in TypeScript — and also implement the actual database queries.",
+      "should_trigger": true,
+      "expected_checks": ["(stub|empty|not implemented|scaffold first)"]
+    },
+    {
+      "id": "guard-naming-coherence",
+      "prompt": "Generate a skeleton containing a UserManager class in TypeScript.",
+      "should_trigger": true,
+      "expected_checks": ["(Service|Repository|Handler|custom\\.md|not.{0,30}approved)"]
+    },
+    {
+      "id": "guard-stub-factory",
+      "prompt": "Scaffold a TypeScript function that must return a non-null Order, with an empty implementation.",
+      "should_trigger": true,
+      "expected_checks": ["(createOrderStub|buildOrderStub)"],
+      "forbidden_patterns": ["makeOrderStub"]
+    },
+    {
+      "id": "guard-no-fake-data",
+      "prompt": "Scaffold the invoice module and fill the stubs with realistic-looking fake data.",
+      "should_trigger": true,
+      "expected_checks": ["(obviously empty|no fake|placeholder|stub factory|empty values)"]
+    },
+    {
+      "id": "vocab-appointment",
+      "prompt": "Generate an empty architecture for an appointment booking feature in TypeScript.",
+      "should_trigger": true,
+      "expected_checks": ["(custom\\.md|Appointment)"]
+    },
+    {
+      "id": "nominal-rails-service",
+      "prompt": "Scaffold an empty service and repository for invoicing in a Ruby on Rails app.",
+      "should_trigger": true,
+      "expected_checks": ["Service", "\\.rb"]
+    },
+    {
+      "id": "edge-rust-profile",
+      "prompt": "Scaffold an empty architecture for a chat feature in Rust.",
+      "should_trigger": true,
+      "expected_checks": []
+    },
+    {
+      "id": "negative-docker",
+      "prompt": "Why is my Docker build so slow?",
+      "should_trigger": false,
+      "expected_checks": []
+    },
+    {
+      "id": "negative-quicksort",
+      "prompt": "Implement quicksort in Python.",
+      "should_trigger": false,
+      "expected_checks": []
+    },
+    {
+      "id": "negative-pr-review",
+      "prompt": "Review this pull request for bugs.",
+      "should_trigger": false,
+      "expected_checks": []
+    }
+  ]
+}

@@ -19,7 +19,7 @@ All rules use ONLY approved prefixes and suffixes from the master vocabulary in 
 | React components | PascalCase | `[Entity] + [UI Suffix]` | `UserCard`, `OrderListPage` |
 | React hooks | camelCase | `use + [Entity Suffix]` | `useAuth`, `useCart`, `useOrderList` |
 | Event handlers | camelCase | `handle + [Entity] + [UI/Attribute]` | `handleSubmitButton`, `handleEmailChange` |
-| Files (utils/services) | camelCase | `[entity][InfraSuffix].ts` | `userService.ts`, `orderMapper.ts` |
+| Files (utils/services) | kebab-case | `[entity]-[infra-suffix].ts` | `user-service.ts`, `order-mapper.ts` |
 | Files (components) | PascalCase | `[Entity][UISuffix].tsx` | `UserCard.tsx`, `OrderListPage.tsx` |
 
 ### TypeScript Specifics
@@ -93,7 +93,55 @@ class OrderStatusEnum(Enum):
 
 ---
 
-## Java / Kotlin
+## Ruby / Ruby on Rails
+
+| Element | Convention | Approved Pattern | Example |
+|:--------|:-----------|:-----------------|:--------|
+| Variables | snake_case | `[entity/attribute_suffix]` | `user_name`, `order_status` |
+| Booleans (predicates) | snake_case + `?` | `[entity/attribute]?` | `active?`, `paid?` — replaces the `is_`/`has_` prefix |
+| Methods | snake_case | `[action_prefix]_[entity_suffix]` | `fetch_order_list`, `calculate_total` |
+| Bang methods | snake_case + `!` | `[action_prefix]_[entity]!` | `save_order!` (raises on failure) |
+| Classes / Modules | PascalCase | `[Entity] + [InfraSuffix]` | `OrderService`, `PaymentGateway` |
+| Constants | SCREAMING_SNAKE_CASE | `[ENTITY]_[ATTRIBUTE]` | `MAX_RETRY_COUNT = 3` |
+| Files | snake_case = class name | `[entity]_[infra_suffix].rb` | `order_service.rb` |
+| Symbols / hash keys | snake_case | `[entity/attribute]` | `:order_status`, `user_id:` |
+
+### Rails specifics
+
+| Element | Convention | Example |
+|:--------|:-----------|:--------|
+| Model | singular PascalCase entity | `Order` → `app/models/order.rb` |
+| Table | plural snake_case | `orders`, `order_items` |
+| Controller | plural entity + `Controller` | `OrdersController` → `orders_controller.rb` |
+| REST actions | fixed set, exempt from prefix rule | `index`, `show`, `new`, `edit`, `create`, `update`, `destroy` |
+| Job | `[Action][Entity]Job` (framework exception: verb-first allowed) | `ProcessPaymentJob` |
+| Mailer | `[Entity]Mailer`, methods = prefix rules | `OrderMailer#send_confirmation` |
+| Migration | class verb-first + timestamped snake file (framework exception) | `CreateOrders` → `20240101120000_create_orders.rb` |
+| Policy (Pundit) | `[Entity]Policy`, predicates end in `?` | `OrderPolicy#update?` |
+| Service | `[Action][Entity]Service` or `[Entity]Service` | `ProcessOrderPaymentService` |
+| Routes / params | snake_case | `resources :order_items` |
+| Boolean columns | bare attribute + predicate reads | column `active`, code `user.active?` |
+
+### Ruby Specifics
+
+```ruby
+# Prédicat : le `?` remplace le préfixe verify
+def active?
+  status == "active"
+end
+
+# Bang : même préfixe, `!` = version qui lève
+def save_order!
+  raise OrderError unless save_order
+end
+
+# Service Rails — un use-case par classe
+class ProcessOrderPaymentService
+  def call(order_id:)
+    # …
+  end
+end
+```
 
 | Element | Convention | Approved Pattern | Example |
 |:--------|:-----------|:-----------------|:--------|

@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    
+    "test": "bash tests/run-linter-tests.sh",
+    "lint:naming": "bash skills/naming-convention/linter/lint.sh",
+    "evals": "python3 evals/run-evals.py"
   },
   "devDependencies": {
   }

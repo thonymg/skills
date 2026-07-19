@@ -13,7 +13,7 @@
 - map/dict/record: return empty map/record (typed).
 - optional: return `null`/`None` only if explicitly allowed by the type.
 - non-null object: return a structurally-valid placeholder from a dedicated stub factory:
-  - `createXStub()` / `buildXStub()` / `makeXStub()`
+  - `createXStub()` / `buildXStub()` (only `create`/`build` — `make` is not an approved prefix)
 
 ### Avoid
 

@@ -63,3 +63,12 @@ Add project-specific patterns in `vocabulary/custom.md`.
 | `Mock` | Test double that verifies behaviour |
 | `Stub` | Test double that returns fixed values |
 | `Fixture` | Predefined data for test state setup |
+
+## Rails
+| Suffix | Role |
+|:-------|:-----|
+| `Mailer` | Sends transactional email (ActionMailer) |
+| `Migration` | One schema change (ActiveRecord) — class may be verb-first (`CreateOrders`), framework exception |
+| `Policy` | Authorization rules for one entity (Pundit) |
+| `Serializer` | Shapes an entity for API output |
+| `Job` | Background job class (ActiveJob) — `Job` is also an entity word, see ambiguous tokens |

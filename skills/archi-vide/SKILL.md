@@ -34,6 +34,7 @@ Always deliver:
 
 Always apply:
 - Naming (mandatory): Use Skill `naming-convention` for every single identifier (files, folders, modules, namespaces, classes, types, interfaces, functions, methods, parameters, return types, variables, properties, DB tables/columns, routes).
+  - Fallback if `naming-convention` is unavailable: camelCase functions/variables, PascalCase types/classes/components, kebab-case JS/TS/CSS files, snake_case Python/Ruby/Dart/Go files, SCREAMING_SNAKE_CASE constants — and keep names `prefix + entity (+ suffix)` shaped.
 - Types: load [references/type-rules.md](references/type-rules.md).
 - Stubs: load [references/stubs.md](references/stubs.md).
 - Architecture note: load [references/architecture-doc.md](references/architecture-doc.md).
@@ -46,6 +47,7 @@ Load exactly one language profile:
 - Python: [languages/python.md](languages/python.md)
 - Ruby: [languages/ruby.md](languages/ruby.md)
 - Dart/Flutter: [languages/dart-flutter.md](languages/dart-flutter.md)
+- Go: [languages/go.md](languages/go.md)
 
 Load patterns only when needed:
 - IO boundaries: [patterns/ports-and-adapters.md](patterns/ports-and-adapters.md)

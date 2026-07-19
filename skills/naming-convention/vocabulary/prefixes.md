@@ -63,3 +63,40 @@ One prefix per method. No word outside this list (and `vocabulary/custom.md`) ma
 | `build` | Construct a complex object step by step |
 | `generate` | Produce a new value algorithmically |
 | `reset` | Restore to initial or default state |
+
+## LIFECYCLE
+| Prefix | Use when |
+|:-------|:---------|
+| `run` | Launch a script, migration, or long-lived process |
+| `start` | Begin a process or timer that will be stopped later |
+| `stop` | Halt a running process or timer |
+| `open` | Acquire a resource (connection, file, modal) |
+| `close` | Release a resource previously opened |
+| `load` | Bring data or a resource into memory |
+| `save` | Persist current state to storage |
+| `apply` | Put a change or configuration into effect |
+| `refresh` | Re-fetch or re-render existing data |
+| `retry` | Re-attempt a previously failed operation |
+
+## EVENTS & HOOKS
+| Prefix | Use when |
+|:-------|:---------|
+| `register` | Add a callback, plugin, or component to a registry |
+| `subscribe` | Start listening to a stream or topic |
+| `unsubscribe` | Stop listening to a stream or topic |
+| `emit` | Publish an event to listeners |
+| `connect` | Establish a live link (socket, store, device) |
+| `disconnect` | Tear down a live link |
+| `toggle` | Flip a boolean state |
+| `notify` | Push an alert to a user or system |
+| `render` | Produce UI output from state |
+| `use` | React/Vue composable hook (`useCart`, `useOrderList`) |
+| `on` | Event handler wired to an event name (`onClick`, `onOrderPaid`) |
+
+---
+
+## Exemptions — never flagged
+
+Language and framework lifecycle methods (`constructor`, `toString`, `render`,
+`ngOnInit`, `componentDidMount`, …), entry points (`main`), and test conventions
+(`test_*`, `describe`, `it`, `beforeEach`, …) are exempt from the prefix rule.

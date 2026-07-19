@@ -1,0 +1,23 @@
+{
+  "violations": {
+    "casing-files": { "errors": 4, "warnings": 0 },
+    "prefixes": { "errors": 3, "warnings": 4 },
+    "forbidden": { "errors": 8, "warnings": 0 },
+    "class-suffixes": { "errors": 3, "warnings": 0 },
+    "standalone-suffixes": { "errors": 1, "warnings": 1 }
+  },
+  "clean": {
+    "casing-files": { "errors": 0, "warnings": 0 },
+    "prefixes": { "errors": 0, "warnings": 0 },
+    "forbidden": { "errors": 0, "warnings": 0 },
+    "class-suffixes": { "errors": 0, "warnings": 0 },
+    "standalone-suffixes": { "errors": 0, "warnings": 0 }
+  },
+  "custom-vocab": {
+    "casing-files": { "errors": 0, "warnings": 0 },
+    "prefixes": { "errors": 0, "warnings": 0 },
+    "forbidden": { "errors": 0, "warnings": 0 },
+    "class-suffixes": { "errors": 0, "warnings": 0 },
+    "standalone-suffixes": { "errors": 0, "warnings": 0 }
+  }
+}

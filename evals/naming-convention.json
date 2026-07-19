@@ -1,0 +1,140 @@
+{
+  "skill": "naming-convention",
+  "description": "Éval de déclenchement et de conformité du skill naming-convention. expected_checks = regex (insensibles à la casse sauf indication) devant matcher la réponse finale ; forbidden_patterns ne doivent PAS matcher.",
+  "cases": [
+    {
+      "id": "nominal-fetch-list",
+      "prompt": "Give me a function name for retrieving the list of active users from the API.",
+      "should_trigger": true,
+      "expected_checks": ["\\bfetch[A-Z][a-zA-Z]*\\b"]
+    },
+    {
+      "id": "nominal-count-variable",
+      "prompt": "Name a variable that holds the number of failed login attempts.",
+      "should_trigger": true,
+      "expected_checks": ["Count\\b"]
+    },
+    {
+      "id": "nominal-gateway-class",
+      "prompt": "I need a class name for the module that talks to the Stripe payment API.",
+      "should_trigger": true,
+      "expected_checks": ["(Gateway|Client)\\b"]
+    },
+    {
+      "id": "nominal-python-verify",
+      "prompt": "Name a Python function that checks whether an order can be refunded.",
+      "should_trigger": true,
+      "expected_checks": ["\\bcan_[a-z_]+"]
+    },
+    {
+      "id": "nominal-react-card",
+      "prompt": "Suggest a name for a React component that displays a user's profile summary as a card.",
+      "should_trigger": true,
+      "expected_checks": ["[A-Z][a-zA-Z]*Card\\b"]
+    },
+    {
+      "id": "nominal-db-column",
+      "prompt": "What should I call the database column that stores when the order was created?",
+      "should_trigger": true,
+      "expected_checks": ["created_(timestamp|date|at)"]
+    },
+    {
+      "id": "nominal-validate-name",
+      "prompt": "Does the name fetchUserOrderList follow my naming convention?",
+      "should_trigger": true,
+      "expected_checks": ["(valid|conform|✅|follows)"]
+    },
+    {
+      "id": "guard-vague-data",
+      "prompt": "Rename getUserData so it follows the convention.",
+      "should_trigger": true,
+      "expected_checks": ["(vague|forbidden|interdit)"],
+      "forbidden_patterns": ["recommend.*getUserData"]
+    },
+    {
+      "id": "guard-compound-verb",
+      "prompt": "Is processAndSaveOrder a good method name?",
+      "should_trigger": true,
+      "expected_checks": ["(split|two[a-z ]*(method|action)|one (single )?action)"]
+    },
+    {
+      "id": "guard-temp-variable",
+      "prompt": "Name a variable for temporary storage of the raw payload before parsing.",
+      "should_trigger": true,
+      "expected_checks": ["[pP]ayload"],
+      "forbidden_patterns": ["`temp`|\\btemp\\b[^a-zA-Z]*(is|would be) (a )?(good|fine)"]
+    },
+    {
+      "id": "guard-numbered",
+      "prompt": "I have variables named status and status2 in my code. Any advice?",
+      "should_trigger": true,
+      "expected_checks": ["(numbered|explicit|concept|rename)"]
+    },
+    {
+      "id": "guard-invalid-prefix",
+      "prompt": "Does grabUserList follow the convention?",
+      "should_trigger": true,
+      "expected_checks": ["(not.{0,20}approved|invalid|custom\\.md|fetch|list)"]
+    },
+    {
+      "id": "vocab-gdpr-anonymize",
+      "prompt": "Name a function that anonymizes user records for GDPR compliance.",
+      "should_trigger": true,
+      "expected_checks": ["custom\\.md"]
+    },
+    {
+      "id": "vocab-prescription-entity",
+      "prompt": "I need identifier names for a Prescription entity in my pharmacy app.",
+      "should_trigger": true,
+      "expected_checks": ["custom\\.md"]
+    },
+    {
+      "id": "casing-python-file",
+      "prompt": "What file name should hold my Python OrderRepository class?",
+      "should_trigger": true,
+      "expected_checks": ["order_repository\\.py"]
+    },
+    {
+      "id": "casing-ts-file",
+      "prompt": "What file name should hold my TypeScript user service module?",
+      "should_trigger": true,
+      "expected_checks": ["user-service\\.ts"]
+    },
+    {
+      "id": "rails-controller",
+      "prompt": "What should I name the Rails controller that manages orders?",
+      "should_trigger": true,
+      "expected_checks": ["OrdersController"]
+    },
+    {
+      "id": "ruby-predicate",
+      "prompt": "Name a Ruby method that tells whether a user is active.",
+      "should_trigger": true,
+      "expected_checks": ["(active\\?|is_[a-z_]*active)"]
+    },
+    {
+      "id": "rails-model-table",
+      "prompt": "What should I call the Rails model class and its database table for orders?",
+      "should_trigger": true,
+      "expected_checks": ["\\bOrder\\b", "\\borders\\b"]
+    },
+    {
+      "id": "negative-css-bug",
+      "prompt": "Fix this CSS bug: the submit button is misaligned on mobile viewports.",
+      "should_trigger": false,
+      "expected_checks": []
+    },
+    {
+      "id": "negative-sql-query",
+      "prompt": "Write a SQL query returning all orders above 100 euros.",
+      "should_trigger": false,
+      "expected_checks": []
+    },
+    {
+      "id": "negative-jwt-explain",
+      "prompt": "Explain how JWT authentication works.",
+      "should_trigger": false,
+      "expected_checks": []
+    }
+  ]
+}

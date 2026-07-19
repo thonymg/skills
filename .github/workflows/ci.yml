@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linter-tests:
+    name: Tests fixtures du linter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run linter regression tests
+        run: bash tests/run-linter-tests.sh
+
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shellcheck linter scripts
+        run: |
+          shellcheck -S error \
+            skills/naming-convention/linter/lint.sh \
+            skills/naming-convention/linter/lib/*.sh \
+            skills/naming-convention/linter/checks/*.sh \
+            tests/run-linter-tests.sh

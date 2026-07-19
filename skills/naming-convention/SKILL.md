@@ -1,119 +1,158 @@
 ---
 name: naming-convention
-description: The types, schema, or code files to derive the naming convention from (optional)
-
+description: Structured naming convention system for code identifiers.
+  Use when naming or renaming variables, functions, methods, classes, files,
+  DB tables/columns, routes, or CSS classes; when validating identifiers against
+  a convention; or when the user mentions naming, camelCase, snake_case,
+  kebab-case, prefixes, or suffixes. Enforces a closed vocabulary
+  (prefix + entity + suffix) with per-language casing rules.
 ---
 
 # Naming Convention
 
-Applies and enforces a structured naming convention built on three layers:
-  Syntax (casing), Semantics (noun/verb roles), and Grammar (closed prefix+suffix vocabulary).
+## QUICK REFERENCE — approved vocabulary (flat list)
 
-  Trigger this skill whenever the user:
-  - Asks to name, rename, or validate a variable, function, class, method, file, or DB column
-  - Reviews code for readability or consistency
-  - Asks if a name is "correct", "good", or follows conventions
-  - Generates or refactors names in any language
-  - Uses words like: naming, convention, prefix, suffix, camelCase, snake_case, identifier
+For simple naming, use this table directly. Load the `vocabulary/` files only in
+the cases listed under « When to load the vocabulary files » below.
 
-## How to apply this skill
+| Category | Approved words |
+|:---------|:---------------|
+| **Prefixes (read)** | get, fetch, find, list |
+| **Prefixes (write)** | create, update, delete, add, remove, set, send, upload |
+| **Prefixes (verify)** | is, has, can, validate |
+| **Prefixes (compute/transform)** | calculate, count, format, convert, parse, map, filter, serialize |
+| **Prefixes (orchestrate/init)** | handle, process, execute, sync, init, build, generate, reset |
+| **Prefixes (lifecycle)** | run, start, stop, open, close, load, save, apply, refresh, retry |
+| **Prefixes (events/hooks)** | register, subscribe, unsubscribe, emit, connect, disconnect, toggle, notify, render, use, on |
+| **Entities** | User, Session, Token, Role, Permission, Order, Cart, Item, Product, Payment, Invoice, Subscription, Message, Notification, Document, Report, Team, Project, Task, Event, Config, Log, Job, Request, Response, Error, Cache, Query |
+| **Collections** | List, Page, Batch, Results |
+| **Attributes** | Id, Code, Key, Hash, Password, Token, Name, Title, Description, Summary, Content, Status, Type, Priority, Count, Amount, Total, Price, Quantity, Limit, Offset, Date, Timestamp, Duration, Url, Path, Payload, Metadata, Version |
+| **Infra suffixes** | Service, Repository, Controller, Middleware, Router, Gateway, Client, Adapter, Queue, Worker, Factory, Builder, Mapper, Validator, Processor, Handler, Provider, Store, Reducer, Model, DTO, Schema, Enum, Util, Config, Logger, Constant, Mock, Stub, Fixture, Mailer, Migration, Policy, Serializer, Job |
+| **UI suffixes** | Page, Screen, Layout, Header, Footer, Sidebar, Card, List, Item, Table, Badge, Avatar, Chart, Nav, Menu, Tabs, Breadcrumb, Pagination, Modal, Drawer, Toast, Tooltip, Spinner, Skeleton, Form, Input, Select, Button, Toggle, Checkbox, Icon |
+| **Connectors** | To, From, In, By, Per, Of (patterns 5 and 8 only) |
 
-**Step 1 — Identify what needs naming**
-Determine: language + element type (variable / method / class / file / DB column).
+Exemptions (never flag): language/framework lifecycle (`constructor`, `render`,
+`ngOnInit`, …), entry points (`main`), test conventions (`test_*`, `describe`, `it`),
+Rails REST actions (`index`, `show`, `new`, `edit`, `create`, `update`, `destroy`),
+Ruby predicates — a trailing `?` replaces the verify prefix (`active?`, not `is_active`).
 
-**Step 2 — Load the right vocabulary**
-Load only the file(s) for the element type. Always also read `vocabulary/custom.md`.
+## When to load the vocabulary files
 
-| Element type | Load |
-|:-------------|:-----|
-| Method or function | `vocabulary/prefixes.md` + entity file |
-| Variable or property | `vocabulary/suffixes-attributes.md` + `vocabulary/suffixes-entities.md` |
-| Class or module | `vocabulary/suffixes-infrastructure.md` + `vocabulary/suffixes-entities.md` |
-| UI component | `vocabulary/suffixes-ui.md` + `vocabulary/suffixes-entities.md` |
-| DB table or column | `vocabulary/suffixes-entities.md` + `vocabulary/suffixes-attributes.md` |
+| Situation | Files to read |
+|:----------|:--------------|
+| Formal validation of identifiers requested | The files matching the element type (below) |
+| A candidate token is NOT in the quick reference | The matching category file + `vocabulary/custom.md` |
+| The project may define extra words | `vocabulary/custom.md` |
+| Method / function (deep check) | `vocabulary/prefixes.md` + relevant entity file |
+| Variable / property (deep check) | `vocabulary/suffixes-attributes.md` + `vocabulary/suffixes-entities.md` |
+| Class / module (deep check) | `vocabulary/suffixes-infrastructure.md` + `vocabulary/suffixes-entities.md` |
+| UI component (deep check) | `vocabulary/suffixes-ui.md` + `vocabulary/suffixes-entities.md` |
+| DB table / column (deep check) | `vocabulary/suffixes-entities.md` + `vocabulary/suffixes-attributes.md` |
 
-If the user asks for examples or language-specific rules, load `references/examples-by-domain.md`.
-If the user asks how to add custom words via CLI, load `references/extending-vocabulary.md`.
-
-**Step 3 — Pick the casing**
-
-| Element | camelCase | PascalCase | snake_case | SCREAMING | kebab |
-|:--------|:---------:|:----------:|:----------:|:---------:|:-----:|
-| Variable / function (JS, Java, C#, Dart) | ✅ | | | | |
-| Class / type / component (all languages) | | ✅ | | | |
-| Variable / function (Python) | | | ✅ | | |
-| File / DB column (all languages) | | | ✅ | | |
-| Global constant | | | | ✅ | |
-| URL / CSS / route | | | | | ✅ |
-
-**Step 4 — Build the name using a pattern**
-
-Pick the first pattern that fits:
-
-1. **Method acting on an entity** → `[Prefix] + [Entity]` — `fetchUser()`, `deleteOrder()`
-2. **Method acting on a property** → `[Prefix] + [Entity] + [Attribute]` — `getOrderStatus()`, `updateUserEmail()`
-3. **Boolean check** → `[is/has/can/validate] + [Entity] + [Attribute?]` — `isUserActive()`, `hasPermission()`
-4. **Collection retrieval** → `[Prefix] + [Entity] + [List/Page/Results/Batch]` — `fetchUserList()`, `listOrderPage()`
-5. **Cross-entity relation** → `[Prefix] + [Entity A] + To/From + [Entity B]` — `assignUserToOrder()`
-6. **Architectural class** → `[Entity] + [Infra Suffix]` — `UserService`, `OrderRepository`
-7. **UI component** → `[Entity] + [UI Suffix]` — `UserCard`, `PaymentForm`
-8. **Transfer object** → `[Action] + [Entity] + DTO` — `CreateOrderDTO`, `UpdateUserEmailDTO`
-
-**Step 5 — Check for violations**
-Run through the Gotchas below before delivering the name.
+Never invent a word: if a token is in neither the quick reference nor the loaded
+files nor `custom.md`, the name is invalid — propose adding the word to `custom.md`.
 
 ---
 
-## Semantic rules
+## CASING — one rule per element type
 
-- **Classes and types** must be substantive nouns. Never verbs, gerunds, or adjectives.
-  `Order` ✅ — `Ordering` ❌ — `ManageUser` ❌
-- **Methods and functions** must start with exactly one approved prefix.
-  One prefix = one responsibility. `processRefund()` ✅ — `processAndSaveRefund()` ❌
-- **Variables and properties** must end with an approved suffix.
-  Booleans must open with a verify prefix: `isActive`, `hasPermission`, `canEdit`.
-  Include the unit when ambiguity is possible: `durationInSeconds`, not `duration`.
+| Element | Rule | Example |
+|:--------|:-----|:--------|
+| Variable / function — JS, TS, Java, C#, Dart | `camelCase` | `orderStatus`, `fetchUser()` |
+| Variable / function — Python, Ruby | `snake_case` | `order_status`, `fetch_user()` |
+| Class / type / component — all languages | `PascalCase` | `UserService`, `OrderCard` |
+| File — JS/TS modules, CSS, routes | `kebab-case` | `user-service.ts`, `order-card.css` |
+| File — React/Vue/Flutter-web component | `PascalCase` | `UserCard.tsx` |
+| File — Python, Ruby, Dart | `snake_case` | `order_repository.py`, `user_service.dart` |
+| File — Rails migration | timestamp + `snake_case` | `20240101120000_create_orders.rb` |
+| File — Java, Kotlin, C# | `PascalCase` (= class name) | `UserService.java` |
+| DB column / table | `snake_case` | `order_status`, `created_at` |
+| Global immutable constant | `SCREAMING_SNAKE_CASE` | `MAX_RETRY_COUNT` |
+| URL / CSS class / route | `kebab-case` | `/api/user-list`, `.order-card` |
 
----
-
-## Gotchas
-
-These are the mistakes that occur most often. Check each one before delivering a name.
-
-- **Contextual redundancy** — when a method belongs to an object, never repeat the object name inside the method. `user.getUserName()` → `user.getName()`. The object already provides the context.
-- **"data", "info", "temp", "x"** — these words are not in the vocabulary and are always forbidden. `getData()` → `fetchUserList()`. `info` → `userSummary`. Every name must contain an approved suffix.
-- **Standalone infra suffix** — `Manager`, `Handler`, `Helper` alone are violations. They must be paired with an entity: `ErrorHandler`, `AuthHelper`, `OrderProcessor`.
-- **Numbering and raw adjectives** — `status2`, `newValue`, `flag` are forbidden. Use the actual concept: `updatedOrderStatus`, `isEmailVerified`.
-- **SCREAMING_SNAKE_CASE on a variable** — `USER_DATA` is a violation if it is not a true immutable constant. Use `userData`.
-- **Word outside the vocabulary** — if a word does not appear in a vocabulary file or in `custom.md`, it cannot be used. Add it to `custom.md` first, then use it.
+⚠ Never apply kebab-case to Python/Dart/Ruby files: `order-repository.py` is not
+importable. The casing follows the language, the vocabulary stays identical.
 
 ---
 
-## Reference files
+## NAME PATTERNS — pick the first that fits
 
-Load these only when needed — do not load them for every request.
-
-- `vocabulary/custom.md` — project-specific words (always check this)
-- `references/examples-by-domain.md` — load when the user asks for examples
-- `references/extending-vocabulary.md` — load when the user wants to add words via CLI
-- `references/language-specific-rules.md` — load when the user asks about a specific language
-
----
-
-## Bootstrapping from an existing type system
-
-When the user provides existing code (types, interfaces, classes, enums, DB schema, OpenAPI spec, or any file with names), extract the convention from it instead of starting from the core vocabulary.
-
-Load `references/bootstrap-from-types.md` for the full extraction procedure.
-
-Trigger phrases: "I already have types", "based on my existing code", "extract from my schema", "derive the convention from", "use my codebase as the base", "here are my existing files".
+| # | Pattern | Example |
+|:--|:--------|:--------|
+| 1 | `[Prefix] + [Entity]` | `fetchUser()`, `deleteOrder()` |
+| 2 | `[Prefix] + [Entity] + [Attribute]` | `getOrderStatus()`, `updateUserEmail()` |
+| 3 | `[is/has/can/validate] + [Entity] + [Attribute?]` | `isUserActive()`, `hasPermission()` |
+| 4 | `[Prefix] + [Entity] + [Collection]` | `fetchUserList()`, `listOrderPage()` |
+| 5 | `[Prefix] + [EntityA] + To/From + [EntityB]` | `assignUserToOrder()` |
+| 6 | `[Entity] + [Infra suffix]` | `UserService`, `OrderRepository` |
+| 7 | `[Entity] + [UI suffix]` | `UserCard`, `PaymentForm` |
+| 8 | `[Action] + [Entity] + DTO` | `CreateOrderDTO`, `UpdateUserEmailDTO` |
 
 ---
 
-## Bootstrapping from an existing type system
+## VALIDATION PROTOCOL — run on every name before delivering it
 
-When the user provides existing code (types, interfaces, classes, enums, DB schema, OpenAPI spec, or any file with names), extract the convention from it instead of starting from the core vocabulary.
+Decompose the identifier into tokens. Verify each token against the vocabulary.
 
-Load `references/bootstrap-from-types.md` for the full extraction procedure.
+```
+fetchUserOrderList  →  fetch | User | Order | List
+                          ↓       ↓       ↓      ↓
+                       prefix  entity  entity  collection
+                         ✅      ✅      ✅      ✅
+```
 
-Trigger phrases: "I already have types", "based on my existing code", "extract from my schema", "derive the convention from", "use my codebase as the base", "here are my existing files".
+**For each token ask:**
+1. Is it a **prefix**? → present in the prefix list. One max, always first.
+2. Is it an **entity**? → present in the entity list or `custom.md`.
+3. Is it an **attribute / infra / UI / collection word**? → present in the matching category.
+4. Is it a **connector** (`To`, `From`, `In`, `By`, `Per`, `Of`)? → allowed only in patterns 5 and 8.
+5. **Token not found anywhere → name is INVALID. Do not deliver it.**
+
+---
+
+## AMBIGUOUS TOKENS — one canonical category each
+
+These words appear in several categories. Resolve them with this table:
+
+| Token | Canonical category | The other reading is allowed only when |
+|:------|:-------------------|:---------------------------------------|
+| `Item` | Entity (line item in a cart/order) | UI: last token of a list-row component (`UserListItem`) |
+| `List` | Collection (end of a data name: `fetchUserList`) | UI: the whole PascalCase component is the list (`UserList`) |
+| `Page` | UI (routed PascalCase component) | Collection: paginated data subset (`fetchOrderPage`) |
+| `Config` | Infra suffix (`AppConfig` class/module) | Entity: a persisted configuration record |
+| `Token` | Attribute (`sessionToken` field) | Entity: the auth domain itself (`TokenService`) |
+| `Error` | Entity — any class ending in `Error` is valid | — |
+| `Job` | Entity (a background process record) | Infra suffix: ActiveJob class (`ProcessPaymentJob`) |
+
+---
+
+## HARD RULES
+
+- **One prefix per method.** `processAndSave()` ❌ — split into two methods.
+- **No word outside the vocabulary.** Add it to `custom.md` first, then use it.
+- **No contextual redundancy.** `user.getUserName()` ❌ → `user.getName()` ✅
+- **No vague words.** `data`, `info`, `temp`, `flag`, `misc`, `stuff`, `thing` are forbidden everywhere.
+- **No numbered identifiers.** `status2`, `error3` ❌ — name the actual concept.
+- **No standalone infra suffix.** `Manager` ❌ → `OrderManager` ✅
+- **SCREAMING_SNAKE_CASE** only for true immutable constants. Never on `var` / `let`.
+- **Units when ambiguous.** `duration` ❌ → `durationInSeconds` ✅
+- **Classes are substantive nouns only.** `Ordering` ❌, `ManageUser` ❌
+
+---
+
+## EXTENDING THE VOCABULARY
+
+If a word is missing from the vocabulary, do not invent it.
+Propose adding it to `vocabulary/custom.md` with its category and definition.
+Wait for confirmation before using it in any name.
+
+---
+
+## REFERENCE FILES — load only on demand
+
+| File | Load when |
+|:-----|:----------|
+| `references/examples-by-domain.md` | User asks for examples |
+| `references/language-specific-rules.md` | User asks about a specific language |
+| `references/bootstrap-from-types.md` | User provides existing code to derive convention from |
+| `references/extending-vocabulary.md` | User wants to add words via CLI |

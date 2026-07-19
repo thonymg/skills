@@ -74,6 +74,33 @@ In practice, you can trigger it by asking things like:
 - “Rename these variables/classes for consistency”
 - “Which names should I use for these SQL columns?”
 
+## Testing
+
+Two layers, both wired for CI (`.github/workflows/ci.yml`):
+
+- **Linter regression tests** — deterministic, free, run on every push:
+
+  ```bash
+  npm test          # or: bash tests/run-linter-tests.sh
+  ```
+
+  Fixtures live in `tests/fixtures/` (`violations/` with known counts,
+  `clean/` with zero, `custom-vocab/` proving `vocabulary/custom.md` is honored).
+  Expected counts per check are pinned in `tests/expected.json`.
+
+- **Skill trigger evals** — prompt sets in `evals/*.json`, played through
+  `claude -p` (costs API budget, manual workflow `evals.yml`):
+
+  ```bash
+  python3 evals/run-evals.py naming-convention --trials 3
+  python3 evals/run-evals.py naming-convention --without-skill   # retirement test
+  ```
+
+  Each case asserts whether the skill should trigger and which regexes the
+  final answer must (or must not) match. Run the `--without-skill` retirement
+  test quarterly: if the bare model passes, the skill section is absorbed —
+  slim it down.
+
 ### Adding a Skill
 
 1. Create a directory under `skills/<name>/`
