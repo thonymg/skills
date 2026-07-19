@@ -8,4 +8,8 @@ class OrdersController < ApplicationController
   def active?
     false
   end
+
+  def count_order_list(order_list)
+    order_list.size
+  end
 end

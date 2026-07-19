@@ -50,9 +50,11 @@ check_file() {
     stripped=$(strip_code "$line")
 
     # ── 1. MOTS VAGUES ── identifiant exactement égal à un mot vague
+    # Le `.` est exclu de la classe « avant » : `response.data` est un accès à une
+    # propriété externe (axios…), pas un nommage — `{ data: x }` reste flagué.
     local word
     for word in $(tr '|' ' ' <<< "$FORBIDDEN_WORDS_EFFECTIVE"); do
-      if grep -qE "(^|[^a-zA-Z0-9_])${word}([^a-zA-Z0-9_]|\$)" <<< "$stripped"; then
+      if grep -qE "(^|[^a-zA-Z0-9_.])${word}([^a-zA-Z0-9_]|\$)" <<< "$stripped"; then
         report "$file" "$lineno" "VAGUE   " "$word" "mot vague interdit — utilise un terme précis du vocabulaire"
         break  # une seule violation VAGUE par ligne
       fi
@@ -70,8 +72,10 @@ check_file() {
     fi
 
     # ── 3. TERMES AMBIGUS SANS UNITÉ ── duration → durationInSeconds, etc.
+    # `.` exclu de la classe « avant » : `list.length` / `orders.size` sont des
+    # appels de méthode du langage, pas des identifiants à nommer.
     for word in $(tr '|' ' ' <<< "$AMBIGUOUS_UNITS_EFFECTIVE"); do
-      if grep -qE "(^|[^a-zA-Z0-9_])${word}([^a-zA-Z0-9_]|\$)" <<< "$stripped" \
+      if grep -qE "(^|[^a-zA-Z0-9_.])${word}([^a-zA-Z0-9_]|\$)" <<< "$stripped" \
          && ! grep -qE "${word}(In)?[A-Z_]" <<< "$stripped"; then
         report "$file" "$lineno" "UNIT    " "$word" "terme ambigu sans unité — ex: ${word}InSeconds, ${word}InMs, ${word}InBytes"
       fi

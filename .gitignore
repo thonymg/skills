@@ -1,16 +1,17 @@
-.cache
+# OS / IDE
 .DS_Store
 .idea
-*.log
-*.tgz
-coverage
-dist
-lib-cov
-logs
-node_modules
-temp
-sources/**
-vendor/**
+
+# Claude Code — état local de session (permissions auto-approuvées)
 .claude/settings.json
 .claude/settings.local.json
+
+# Node — utile dès la migration Node/TS du linter (plan 4.1)
+node_modules
+dist
+coverage
+*.log
+
+# Résultats d'évals générés par evals/run-evals.py
 evals/results/
+**/__pycache__/**

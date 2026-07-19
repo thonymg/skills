@@ -15,9 +15,6 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LINTER_DIR="$TESTS_DIR/../skills/naming-convention/linter"
 EXPECTED_FILE="$TESTS_DIR/expected.json"
 
-CHECKS=(casing-files prefixes forbidden class-suffixes standalone-suffixes)
-FIXTURES=(violations clean custom-vocab)
-
 PASS=0
 FAIL=0
 
