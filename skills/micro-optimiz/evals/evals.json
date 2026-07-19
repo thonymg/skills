@@ -1,0 +1,23 @@
+{
+  "skill_name": "micro-optimiz",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "j'ai un fichier payment-processor.ts qui marche mais qui est un peu crade. optimise-le stp — petites améliorations de qualité seulement, applique directement les changements et liste ce que tu as fait",
+      "expected_output": "Micro-refactos appliquées : guard clauses, ===, constante pour le magic number 3, catch non muet, promise notify gérée, var→const, dead code supprimé, division par zéro signalée/gardée. API exportée inchangée.",
+      "files": ["fixtures/payment-processor.ts"]
+    },
+    {
+      "id": 1,
+      "prompt": "Améliore la qualité de report_builder.py (lisibilité + bugs potentiels). Le comportement doit rester identique. Applique directement les changements.",
+      "expected_output": "Default mutable corrigé, except: rétréci, range(len) remplacé, with open, pathlib/os.path, expression dupliquée factorisée, early return, type hints. Signature compatible.",
+      "files": ["fixtures/report_builder.py"]
+    },
+    {
+      "id": 2,
+      "prompt": "Ce fichier inventory-manager.ts est devenu gros et je le trouve brouillon. Optimise sa qualité. Applique directement les changements.",
+      "expected_output": "GARDE-FOU : micro-améliorations seulement (var→const, ===, for..of, guard clauses, constantes) SANS découper la classe, sans nouveaux fichiers, API publique inchangée ; les problèmes structurels (god class, URLs en dur) signalés en observations.",
+      "files": ["fixtures/inventory-manager.ts"]
+    }
+  ]
+}
