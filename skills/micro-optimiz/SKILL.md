@@ -1,25 +1,31 @@
 ---
 name: micro-optimiz
-description: Daily incremental code optimization. Each pass reduces complexity
-  and line count on targeted files — deleting dead code, flattening control
-  flow, redesigning a function or class toward composition and light functional
-  style — while strictly preserving behavior. Use when the user asks to
-  optimize, simplify, refactor, reduce complexity, clean up, or shrink code;
-  mentions dead code, error handling, readability, maintainability, or a
-  daily/recurring cleanup pass. Not for adding features, performance tuning, or swapping
-  libraries.
+description: Daily micro-refactoring. Each round is one small, behavior-preserving
+  diff that raises code quality — deleting dead code, merging duplication into
+  one generic helper, flattening control flow, purifying functions, fixing
+  error paths, uniformizing names, separating concerns — never a big
+  refactoring. Changes too large for one round are sliced into a ledger and
+  done over several rounds. Use when the user asks to optimize, simplify,
+  refactor, reduce complexity, clean up, or shrink code; asks to improve a
+  function's design, make code more generic or reusable, or remove a
+  flag/boolean parameter; mentions dead code, duplication, error handling,
+  naming, SOLID, readability, maintainability, or a daily/recurring cleanup
+  pass. Also triggers on a single pasted
+  function or snippet the user asks to simplify, clean, or improve — small
+  input still goes through the catalog, not ad-hoc advice. Not for adding
+  features, performance tuning, or swapping libraries.
 ---
 
 # micro-optimiz — daily complexity reduction
 
-Run this every day and the codebase gets simpler every day. Each pass makes
+Run this every day and the codebase gets simpler every day. Each round makes
 the targeted code measurably lighter: fewer lines, less nesting, fewer
 concepts to hold in mind. Deletion is the best refactoring; the second best
 is replacing imperative plumbing with a composed expression.
 
-## Goal per pass
+## Goal per round
 
-A pass succeeds when at least one of these moved in the right direction,
+A round succeeds when at least one of these moved in the right direction,
 with behavior unchanged:
 
 - **Lines of code** — dead code deleted, duplication merged, boilerplate
@@ -29,11 +35,19 @@ with behavior unchanged:
 - **Design** — a function or class reshaped so its structure matches its
   purpose (see "Design moves" below).
 
-The only hard limit is **behavior preservation**. Unlike a timid lint pass,
-this skill may redesign an entire function or class in one move — as long as
-the result is verifiably equivalent and reviewable. What it never does:
-add features, add dependencies, tune performance, swap libraries, or mix a
-bugfix silently into a refactoring (label bugfixes `BUGFIX`, propose apart).
+Two hard limits:
+
+1. **Behavior preservation** — the result must be verifiably equivalent.
+2. **Round budget** — one round is one small reviewable diff:
+   **≤ ~50 changed lines, ≤ 2 files** (the target plus its direct callers),
+   **at most one structural reshape**. A change that cannot fit is not done
+   bigger — it is **sliced into rounds**
+   ([references/multi-round.md](references/multi-round.md)). Never let a
+   round grow into a big refactoring "since we're at it".
+
+What it never does: add features, add dependencies, tune performance, swap
+libraries, or mix a bugfix silently into a refactoring (label bugfixes
+`BUGFIX`, propose apart).
 
 ## Style preference: composition & light FP
 
@@ -51,14 +65,17 @@ Full patterns in [references/composition-fp.md](references/composition-fp.md)
 
 ## Workflow
 
-1. **Pick the target.** The file(s) the user named; otherwise the files most
+1. **Check the ledger.** If `.micro-optimiz.md` exists at the repo root, an
+   in-progress multi-round change has priority: do its next step
+   ([references/multi-round.md](references/multi-round.md)), then stop.
+2. **Pick the target.** The file(s) the user named; otherwise the files most
    recently changed (`git log --since` / current diff). Daily mode: rotate —
    don't re-polish yesterday's file, pick the next worst one.
-2. **Read the whole file, then its context.** Before reshaping a function,
+3. **Read the whole file, then its context.** Before reshaping a function,
    check its callers and siblings: a redesign must fit how the function is
    actually used, and the class design around it. Never redesign from the
    body alone.
-3. **Hunt in this order:**
+4. **Hunt in this order:**
    a. **Delete** — dead code, unused exports/params, commented-out blocks,
       speculative flexibility, redundant comments. Free wins first.
    b. **Flatten** — guard clauses, merged conditions, removed else-branches,
@@ -67,41 +84,58 @@ Full patterns in [references/composition-fp.md](references/composition-fp.md)
    c. **Error paths** — swallowed or over-broad catches, exceptions as
       control flow, scattered try/catch that belongs at one boundary
       ([references/error-handling.md](references/error-handling.md)).
-   d. **Reshape** — the one function or class in the file with the worst
+   d. **Unify** — merge proven duplication (rule of three) into one generic,
+      well-named helper; align divergent names for the same concept
+      (catalog B9, C1, C11). Generic means *parametrizing what already
+      varies* — never speculative flexibility.
+   e. **Reshape** — the one function or class in the file with the worst
       complexity-to-purpose ratio; redesign it using the moves in
       [references/composition-fp.md](references/composition-fp.md).
    Load the matching language profile from [languages/](languages/).
-4. **Apply, then verify.** Tests if they exist, otherwise type-checker or
+5. **Size every candidate against the round budget.** Fits → apply now.
+   Too big → don't shrink your ambition, shrink the step: slice it per
+   [references/multi-round.md](references/multi-round.md), apply step 1,
+   write the rest to the ledger.
+6. **Apply, then verify.** Tests if they exist, otherwise type-checker or
    compiler, otherwise re-read the full diff. Verification fails → revert
    that change, don't patch forward.
-5. **Report the delta.** Lines before → after, what was deleted, what was
-   reshaped and why. End with observations: what's too big for one pass and
-   should be tomorrow's target.
+7. **Report the delta.** Lines before → after, what was deleted, what was
+   reshaped and why. State ledger status (steps remaining, or ledger
+   deleted). End with observations: tomorrow's candidates.
 
 Propose before applying only if the user asked for review; daily/recurring
 runs apply directly and report.
 
 ## Design moves (function & class level)
 
-Allowed in one pass, when call sites are within reach:
+Allowed in one round when call sites are within reach **and the diff fits
+the round budget**:
 
 - Rewrite a function's body entirely (loop → pipeline, state machine → match).
-- Split a two-purpose function; inline a needless indirection.
-- Replace a flag parameter with two functions or an injected function.
+- Split a two-purpose function; inline a needless indirection; separate a
+  pure calculation from the IO around it (separation of concerns).
+- Replace a flag parameter with two functions or an injected function
+  (strategy as a function — the only design patterns used here are the
+  lightweight ones that *remove* branches: strategy, lookup table, null
+  object; never pattern-for-pattern's-sake).
 - Turn a one-method class into a function; a data-only class into a
   record/dataclass; replace an inheritance level with composition or a
   passed-in strategy function.
-- Merge overlapping helpers into one; delete the wrappers.
+- Merge overlapping helpers into one generic one; delete the wrappers.
 
-Out of reach (report as observation, don't do): moves across modules,
-public API changes with external callers, architecture changes.
+Too big for one round but still in scope → slice it
+([references/multi-round.md](references/multi-round.md)).
+
+Out of reach entirely (report as observation, don't do): moves across
+modules, public API changes with external callers, architecture changes.
 
 ## Daily cadence
 
 Designed to run as a recurring pass (cron, `/loop`, or habit). Each run:
-one target, one focused pass, one small reviewable diff. Compounding beats
-big-bang: never let a pass grow into a rewrite because "we're at it anyway".
-Yesterday's observations are today's candidates.
+one target, one focused round, one small reviewable diff. Compounding beats
+big-bang: never let a round grow into a rewrite because "we're at it anyway".
+The ledger carries multi-round work between runs; yesterday's observations
+are today's candidates.
 
 ## Naming
 

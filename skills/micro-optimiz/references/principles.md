@@ -5,7 +5,8 @@ when two rules conflict, or when deciding whether an edge case is worth
 touching. The moves themselves live in [catalog.md](catalog.md),
 [composition-fp.md](composition-fp.md), and
 [error-handling.md](error-handling.md) — all in the same
-`Detect / Fix / Principle` format.
+`Detect / Fix / Principle` format. Slicing a too-big change into rounds
+lives in [multi-round.md](multi-round.md).
 
 ## Reading & cognition
 
@@ -93,6 +94,15 @@ touching. The moves themselves live in [catalog.md](catalog.md),
 - **Small reversible steps** (Fowler): each step compiles and passes tests;
   if verification fails, revert rather than patch forward. The ability to
   abandon a step cheaply is what makes refactoring safe.
+- **Tidyings, not rewrites** (Kent Beck, *Tidy First?*): a tidying is a
+  refactoring so small nobody could object to it — minutes, not hours. Many
+  small safe diffs beat one heroic one: each is trivially reviewable,
+  individually revertible, and never blocks feature work. Size is a hard
+  constraint, not a preference — a too-big change is *sliced*
+  ([multi-round.md](multi-round.md)), never forced through.
+- **Separate tidying from behavior change** (Beck): a round is either a
+  refactoring or a bugfix, never both in one diff — mixed commits make both
+  halves unreviewable.
 - **Code smells are hints, not verdicts** (Fowler's catalog). A smell earns a
   fix only when the fix is smaller than the smell.
 

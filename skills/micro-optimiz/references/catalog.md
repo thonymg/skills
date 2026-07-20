@@ -217,8 +217,20 @@ value. A full value-object type is an observation for the user.
 **Detect:** a function where you lose track of state while reading — deep
 nesting, many exits mixed with loops, boolean flags steering control flow.
 **Fix:** apply B1 (guards), B2 (predicates), C2 (extract phases) in
-combination — still within the ~30-line budget. Otherwise: observation.
+combination — within the round budget. Too big for one round → slice it
+([multi-round.md](multi-round.md)) instead of downgrading to an observation.
 **Principle:** the limit is the reader's working memory, not the parser.
+
+### C11. Near-duplicate variants → one generic helper
+**Detect:** 3+ functions or blocks that are the same shape with small
+variations — a different field, comparison, or constant
+(`sortByName`/`sortByDate`, three almost-identical validators).
+**Fix:** one helper parametrized by exactly what varies (a key function, a
+predicate, a constant); old names become one-line calls or disappear.
+Generalize only what the existing copies prove varies — an unused type
+parameter or option is C7, not genericity.
+**Principle:** DRY of knowledge + rule of three — generic because it already
+varies, never because it might.
 
 ---
 

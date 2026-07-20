@@ -2,26 +2,15 @@
 
 A curated collection of [Agent Skills](https://agentskills.io/home) for Claude Code and other AI coding agents.
 
-## Repository
-
 GitHub: https://github.com/thonymg/skills
 
-## What is a “Skill”?
+## What is a "Skill"?
 
 A skill is a small, self-contained prompt bundle (a `SKILL.md` + optional references/vocabulary) that teaches an agent:
 
-- When to activate (trigger phrases in `description`)
-- What rules to follow
-- How to produce consistent outputs (examples, checklists, vocabularies)
-
-## What can skills do?
-
-Typical capabilities provided by skills in this repo:
-
-- Generate names (variables, functions, classes, files, DB tables/columns) that follow strict conventions
-- Validate existing identifiers and explain what rule is violated
-- Provide concise, domain-oriented examples based on an approved vocabulary
-- Enforce consistency across languages (casing changes, patterns stay the same)
+- **When** to activate (trigger phrases in the `description` frontmatter)
+- **What** rules to follow
+- **How** to produce consistent outputs (examples, checklists, vocabularies)
 
 ## Installation
 
@@ -31,93 +20,76 @@ npx skills add thonymg/skills --skill='*'
 bunx skills add thonymg/skills --skill='*'
 ```
 
-Or install all skills globally:
-
-```bash
-pnpx skills add thonymg/skills --skill='*' -g
-npx skills add thonymg/skills --skill='*' -g
-bunx skills add thonymg/skills --skill='*' -g
-```
-
-Learn more at [vercel-labs/skills](https://github.com/vercel-labs/skills).
+Or install globally with `-g`. Learn more at [vercel-labs/skills](https://github.com/vercel-labs/skills).
 
 ## Skills
 
 | Skill | Description | Triggers |
 |-------|-------------|----------|
 | [naming-convention](skills/naming-convention) | Structured naming convention system — syntax, semantics, and grammar rules for variables, functions, classes, files, and more | naming, convention, prefix, suffix, camelCase, snake_case, identifier |
-| [archi-vide](skills/archi-vide) | Empty, strongly-typed architecture scaffolding — generates code stubs with minimal comments and clear boundaries | scaffold, skeleton, architecture, stubs, clean architecture, ports, adapters, repository |
-| [micro-optimiz](skills/micro-optimiz) | Daily incremental code optimization — reduces complexity and line count, deletes dead code, reshapes functions/classes toward composition and light FP, behavior-preserving | optimize, simplify, refactor, reduce complexity, dead code, error handling, cleanup pass |
+| [archi-vide](skills/archi-vide) | Empty, strongly-typed architecture scaffolding — code stubs with minimal comments and clear boundaries, no implementation | scaffold, skeleton, architecture, stubs, clean architecture, ports, adapters, repository |
+| [micro-optimiz](skills/micro-optimiz) | Daily micro-refactoring — one small behavior-preserving diff per round; big changes are sliced into a ledger and done over several rounds, never in one shot | optimize, simplify, refactor, clean up, dead code, duplication, error handling, SOLID, daily pass |
 
-## naming-convention — What it knows how to do
+### naming-convention
 
-- Apply a 3-layer convention: Syntax (casing), Semantics (noun/verb roles), Grammar (closed prefix+suffix vocabulary)
-- Propose compliant names and refactors in any language (JS/TS, Python, Java/Kotlin, SQL, routes/CSS…)
-- Detect and fix common anti-patterns:
+- Applies a 3-layer convention: **Syntax** (casing), **Semantics** (noun/verb roles), **Grammar** (closed prefix+suffix vocabulary)
+- Proposes compliant names and refactors in any language (JS/TS, Python, Java/Kotlin, SQL, routes/CSS…)
+- Detects and fixes common anti-patterns:
   - Contextual redundancy: `user.getUserName()` → `user.getName()`
   - Forbidden vague words: `data`, `info`, `temp`, `x`
   - Mixed responsibilities: `processAndSaveOrder()` → split into 2 actions
   - Infra suffix alone: `Manager/Handler/Helper` must be paired with an entity
-- Provide ready-to-copy examples by domain and language-specific rules via reference files
+- Ships a deterministic linter (`tests/`) plus per-domain vocabularies and language rules in reference files
 
-## micro-optimiz — What it knows how to do
+### archi-vide
 
-Designed to run as a daily pass (cron, `/loop`, or habit): each run picks one target, produces one small reviewable diff, and the codebase gets simpler every day. Strictly behavior-preserving — bugfixes are labeled `BUGFIX` and proposed separately.
+- Generates **empty** architectures: strongly-typed stubs, explicit module boundaries, zero business logic
+- Always delivers a file tree, the stub code, a short rationale on dependency direction, and an `archi-*.md` note (why, impacts, expected results)
+- Language profiles and pattern references (ports/adapters, repository, clean architecture) keep the skeleton idiomatic per stack
 
-- Hunt in a fixed order: **Delete** (dead code, unused exports, speculative flexibility) → **Flatten** (guard clauses, if-chains → match/lookup) → **Error paths** (swallowed catches, try/catch scattered instead of one boundary) → **Reshape** (the worst function or class, redesigned)
-- Prefer composition and light FP: loop+accumulator → pipeline, flag parameter → injected function, inheritance level → strategy function, one-method class → function, IO interleaved → pure core + thin shell
-- 50 cataloged moves in a uniform `Detect / Fix / Principle` format across three references: [catalog](skills/micro-optimiz/references/catalog.md) (latent bugs, readability, structure), [composition-fp](skills/micro-optimiz/references/composition-fp.md), [error-handling](skills/micro-optimiz/references/error-handling.md)
-- Grounded in [principles](skills/micro-optimiz/references/principles.md) (Fowler, Ousterhout, Clean Code, cognitive complexity…) with an explicit conflict-resolution order — and language profiles (TS, Python, Ruby, Dart/Flutter) that override generic rules where idioms differ
-- Report the delta after each pass: lines before → after, what was deleted, what was reshaped, and observations that become tomorrow's targets
+### micro-optimiz
+
+Daily micro-refactoring (cron, `/loop`, or habit): each run picks one target and produces **one small reviewable diff**. Strictly behavior-preserving — bugfixes are labeled `BUGFIX` and proposed separately.
+
+- **Two hard limits**: behavior preservation, and a **round budget** (≤ ~50 changed lines, ≤ 2 files, at most one structural reshape). A change that doesn't fit is never done bigger — it is sliced into rounds.
+- **Multi-round slicing** ([multi-round.md](skills/micro-optimiz/references/multi-round.md)): parallel change (expand → migrate → contract), Mikado-lite (try, revert, do the leaf prerequisite), within-file strangler. In-progress plans persist in a `.micro-optimiz.md` ledger at the repo root — checkbox steps, each shippable alone, finished sections deleted. A run always resumes the ledger before opening new work.
+- **Hunt order**: Delete (dead code, speculative flexibility) → Flatten (guard clauses, if-chains → match/lookup) → Error paths (swallowed catches, one boundary) → Unify (rule-of-three duplication → one generic helper, name alignment) → Reshape (the worst function or class)
+- **Composition & light FP**: loop+accumulator → pipeline, flag parameter → injected function, inheritance level → strategy function, IO interleaved → pure core + thin shell. Only branch-removing design patterns (strategy, lookup table, null object) — never pattern-for-pattern's-sake, never speculative generality.
+- **50+ cataloged moves** in a uniform `Detect / Fix / Principle` format: [catalog](skills/micro-optimiz/references/catalog.md) (latent bugs, readability, structure), [composition-fp](skills/micro-optimiz/references/composition-fp.md), [error-handling](skills/micro-optimiz/references/error-handling.md) — grounded in [principles](skills/micro-optimiz/references/principles.md) (Fowler, Kent Beck's *Tidy First?*, Ousterhout, SOLID, cognitive complexity) with an explicit conflict-resolution order, plus language profiles (TS, Python, Ruby, Dart/Flutter)
+- **Report per round**: lines before → after, what was deleted/reshaped, ledger status, and observations that become tomorrow's targets
 
 ## How It Works
 
-Each skill is a `SKILL.md` file with YAML frontmatter that tells the agent **when** and **how** to activate it. Skills can include reference files for deeper context.
-
-### Using a Skill
-
-Skills are activated on-demand by the agent based on the `description` field. For example, `naming-convention` activates whenever you discuss naming, conventions, or code readability.
-
-In practice, you can trigger it by asking things like:
-
-- “Give me a name for a function that …”
-- “Does this name follow the convention?”
-- “Rename these variables/classes for consistency”
-- “Which names should I use for these SQL columns?”
+Each skill is a `SKILL.md` with YAML frontmatter that tells the agent **when** and **how** to activate. Skills are triggered on-demand from the `description` field — e.g. `micro-optimiz` activates on "optimise ce fichier", "clean up", "passe quotidienne de refacto"; `naming-convention` on any naming/convention question.
 
 ## Testing
 
-Two layers, both wired for CI (`.github/workflows/ci.yml`):
+Two layers, both wired for CI:
 
-- **Linter regression tests** — deterministic, free, run on every push:
+- **Linter regression tests** — deterministic, free, run on every push (`.github/workflows/ci.yml`):
 
   ```bash
   npm test          # or: bash tests/run-linter-tests.sh
   ```
 
-  Fixtures live in `tests/fixtures/` (`violations/` with known counts,
-  `clean/` with zero, `custom-vocab/` proving `vocabulary/custom.md` is honored).
-  Expected counts per check are pinned in `tests/expected.json`.
+  Fixtures live in `tests/fixtures/` (`violations/` with known counts, `clean/` with zero, `custom-vocab/` proving `vocabulary/custom.md` is honored). Expected counts per check are pinned in `tests/expected.json`.
 
-- **Skill trigger evals** — prompt sets in `evals/*.json`, played through
-  `claude -p` (costs API budget, manual workflow `evals.yml`):
+- **Skill trigger evals** — one prompt set per skill in `evals/*.json` (`naming-convention`, `archi-vide`, `micro-optimiz`), played through `claude -p` in a throwaway workspace (costs API budget; manual workflow `evals.yml`):
 
   ```bash
-  python3 evals/run-evals.py naming-convention --trials 3
-  python3 evals/run-evals.py naming-convention --without-skill   # retirement test
+  python3 evals/run-evals.py micro-optimiz --dry-run       # list cases, no API calls
+  python3 evals/run-evals.py micro-optimiz --trials 3
+  python3 evals/run-evals.py micro-optimiz --without-skill # retirement test (baseline)
   ```
 
-  Each case asserts whether the skill should trigger and which regexes the
-  final answer must (or must not) match. Run the `--without-skill` retirement
-  test quarterly: if the bare model passes, the skill section is absorbed —
-  slim it down.
+  Each case asserts whether the skill should trigger and which regexes the final answer must (or must not) match. Cases cover nominal moves, guard rails (no big-bang rewrite, `BUGFIX` labeling, no speculative generality), and negative prompts that must NOT trigger. Run `--without-skill` quarterly: if the bare model passes, the skill section is absorbed — slim it down.
 
 ### Adding a Skill
 
-1. Create a directory under `skills/<name>/`
-2. Add a `SKILL.md` with frontmatter (`name`, `description`, `metadata`)
-3. Add `references/` for detailed topic (optional)
-4. Register the skill name in `meta.ts` under `manual`
+1. Create `skills/<name>/SKILL.md` with frontmatter (`name`, `description`)
+2. Add `references/` and `languages/` for deeper context (optional)
+3. Add an eval spec `evals/<name>.json` and register the name in `.github/workflows/evals.yml` options
+4. Update the table above
 
 ## License
 

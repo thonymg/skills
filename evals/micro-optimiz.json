@@ -1,0 +1,82 @@
+{
+  "skill": "micro-optimiz",
+  "description": "Éval de déclenchement et de conformité du skill micro-optimiz. Le runner est read-only (Skill,Read,Glob,Grep) : les prompts embarquent le code et demandent une proposition, pas une application. expected_checks = regex devant matcher la réponse finale ((?i) = insensible à la casse) ; forbidden_patterns ne doivent PAS matcher.",
+  "cases": [
+    {
+      "id": "nominal-dead-code",
+      "prompt": "Fais une passe de micro-optimisation sur cette fonction et propose les changements :\n\n```js\nfunction total(items) {\n  var unused = 0;\n  // var legacy = computeLegacy(items);\n  let sum = 0;\n  for (var i = 0; i < items.length; i++) {\n    sum = sum + items[i].price;\n  }\n  return sum;\n}\n```",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(dead code|code mort|unused|inutilis|supprim|delet)", "(?i)(const|reduce|for[ .]*of)"]
+    },
+    {
+      "id": "nominal-guard-clauses",
+      "prompt": "Simplifie ce code, comportement identique :\n\n```ts\nfunction ship(order: Order) {\n  if (order) {\n    if (order.isPaid) {\n      if (order.items.length > 0) {\n        return send(order);\n      } else {\n        return null;\n      }\n    } else {\n      return null;\n    }\n  } else {\n    return null;\n  }\n}\n```",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(guard|early return|retour (anticipé|précoce)|garde)"]
+    },
+    {
+      "id": "nominal-swallowed-error",
+      "prompt": "Passe qualité sur cette fonction, propose les corrections :\n\n```ts\nasync function loadConfig(path: string) {\n  try {\n    return JSON.parse(await readFile(path, 'utf8'));\n  } catch (e) {\n    return {};\n  }\n}\n```",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(swallow|silenc|aval|masqu|rethrow|relanc|propag|explicit)"]
+    },
+    {
+      "id": "nominal-mutable-default",
+      "prompt": "Nettoie ce code Python (petites améliorations seulement) :\n\n```python\ndef collect(item, bucket=[]):\n    bucket.append(item)\n    return bucket\n```",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(None|sentinel|d[ée]faut mutable|mutable default)"]
+    },
+    {
+      "id": "nominal-duplication-generic",
+      "prompt": "J'ai de la duplication, refactore proprement :\n\n```ts\nfunction sortByName(users: User[]) { return [...users].sort((a, b) => a.name.localeCompare(b.name)); }\nfunction sortByEmail(users: User[]) { return [...users].sort((a, b) => a.email.localeCompare(b.email)); }\nfunction sortByCity(users: User[]) { return [...users].sort((a, b) => a.city.localeCompare(b.city)); }\n```",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(g[ée]n[ée]rique|generic|param[ée]t|factoris|une seule fonction|single (helper|function))"]
+    },
+    {
+      "id": "nominal-flag-param",
+      "prompt": "Ce paramètre booléen me gêne, améliore le design sans changer le comportement :\n\n```ts\nfunction render(report: Report, isCompact: boolean) {\n  if (isCompact) { return renderRows(report.rows.slice(0, 5)); }\n  return renderHeader(report) + renderRows(report.rows) + renderFooter(report);\n}\n```",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(deux fonctions|two functions|s[ée]par|split|strat[ée]g|inject)"]
+    },
+    {
+      "id": "guard-no-big-refactor",
+      "prompt": "Mon service orders.ts fait 400 lignes : une classe qui mélange requêtes SQL, calculs de prix, envoi d'emails et logging. Réécris-le entièrement d'un coup, et tant qu'on y est réorganise toute l'architecture du dossier.",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(round|[ée]tape|step|tranche|slice|ledger|petit|small|observation)"],
+      "forbidden_patterns": ["(?i)voici la r[ée][ée]criture compl[èe]te"]
+    },
+    {
+      "id": "guard-bugfix-label",
+      "prompt": "Améliore la lisibilité de cette fonction, comportement inchangé :\n\n```ts\nfunction average(nums: number[]) {\n  let total = 0;\n  for (var i = 0; i < nums.length; i++) { total = total + nums[i]; }\n  return total / nums.length;\n}\n```",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(BUGFIX|division par z[ée]ro|divide by zero|NaN|tableau vide|empty array)"]
+    },
+    {
+      "id": "guard-no-speculative",
+      "prompt": "Rends cette fonction la plus générique possible pour supporter de futurs formats d'export qu'on ajoutera peut-être un jour :\n\n```python\ndef export_csv(rows):\n    return \"\\n\".join(\",\".join(str(v) for v in row) for row in rows)\n```",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(YAGNI|sp[ée]culat|speculat|pr[ée]matur|premature|r[èe]gle de trois|rule of three|pas (encore|besoin))"]
+    },
+    {
+      "id": "nominal-daily-loop",
+      "prompt": "Je veux mettre en place une passe quotidienne de nettoyage incrémental de mon code avec toi. Comment ça se passerait, concrètement ?",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(quotidien|daily|round|passe|diff|petit|small)"]
+    },
+    {
+      "id": "negative-add-feature",
+      "prompt": "Ajoute un endpoint de pagination à mon API Express, avec des query params page et limit.",
+      "should_trigger": false
+    },
+    {
+      "id": "negative-performance",
+      "prompt": "Ma boucle de traitement est trop lente sur 10 millions d'éléments. Optimise la performance, quitte à changer d'algorithme ou de structure de données.",
+      "should_trigger": false
+    },
+    {
+      "id": "negative-css",
+      "prompt": "Pourquoi mon div flexbox ne se centre pas verticalement ?",
+      "should_trigger": false
+    }
+  ]
+}
