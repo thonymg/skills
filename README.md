@@ -29,6 +29,7 @@ Or install globally with `-g`. Learn more at [vercel-labs/skills](https://github
 | [naming-convention](skills/naming-convention) | Structured naming convention system — syntax, semantics, and grammar rules for variables, functions, classes, files, and more | naming, convention, prefix, suffix, camelCase, snake_case, identifier |
 | [archi-vide](skills/archi-vide) | Empty, strongly-typed architecture scaffolding — code stubs with minimal comments and clear boundaries, no implementation | scaffold, skeleton, architecture, stubs, clean architecture, ports, adapters, repository |
 | [micro-optimiz](skills/micro-optimiz) | Daily micro-refactoring — one small behavior-preserving diff per round; big changes are sliced into a ledger and done over several rounds, never in one shot | optimize, simplify, refactor, clean up, dead code, duplication, error handling, SOLID, daily pass |
+| [fix-root](skills/fix-root) | Root-cause-first bug fix — ≥3 hypotheses before picking one, evidence and impact map via the codebase graph, failing test first, minimal fix, then re-verifies impact/consequences with the same graph before the full suite | fix this bug, corrige ce bug, root cause, RCA, cause profonde, debug this error, resolve this exception |
 
 ### naming-convention
 
@@ -57,6 +58,24 @@ Daily micro-refactoring (cron, `/loop`, or habit): each run picks one target and
 - **Composition & light FP**: loop+accumulator → pipeline, flag parameter → injected function, inheritance level → strategy function, IO interleaved → pure core + thin shell. Only branch-removing design patterns (strategy, lookup table, null object) — never pattern-for-pattern's-sake, never speculative generality.
 - **50+ cataloged moves** in a uniform `Detect / Fix / Principle` format: [catalog](skills/micro-optimiz/references/catalog.md) (latent bugs, readability, structure), [composition-fp](skills/micro-optimiz/references/composition-fp.md), [error-handling](skills/micro-optimiz/references/error-handling.md) — grounded in [principles](skills/micro-optimiz/references/principles.md) (Fowler, Kent Beck's *Tidy First?*, Ousterhout, SOLID, cognitive complexity) with an explicit conflict-resolution order, plus language profiles (TS, Python, Ruby, Dart/Flutter)
 - **Report per round**: lines before → after, what was deleted/reshaped, ledger status, and observations that become tomorrow's targets
+
+### fix-root
+
+One sequence — diagnose, fix, verify — leaning on `codebase-memory-mcp` at
+every phase, not just to locate the bug.
+
+- **Diagnose**: ≥3 hypotheses for the cause before picking one
+  (anchoring-bias gate — no single first-guess diagnosis), each backed by
+  cited evidence from `trace_path`/`search_graph`/`get_code_snippet`/
+  `query_graph`; other hypotheses rejected with evidence, not assumption.
+- **Fix**: maps every caller/consumer before touching code
+  (`trace_path(direction="both")`), writes a failing test first, applies
+  the minimal diff at the root cause only — no refactor mixed in.
+- **Verify**: re-runs the same graph calls post-fix and diffs the result
+  against the pre-fix baseline — `detect_changes()` for the real blast
+  radius, `trace_path` again to catch scope creep, `search_graph` to
+  confirm no sibling occurrence of the same bug was left behind, then the
+  full suite and a separate self-critique pass before reporting.
 
 ## How It Works
 
