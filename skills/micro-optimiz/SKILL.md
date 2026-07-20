@@ -63,21 +63,43 @@ Full patterns in [references/composition-fp.md](references/composition-fp.md)
 - **Light** FP: no monad stacks, no point-free golf, no clever combinators.
   If the FP version is harder to read than the loop, keep the loop.
 
+## Codebase graph (MCP) — use before grep
+
+If the `codebase-memory-mcp` server is available, it replaces most manual
+grepping in the steps below with a precise, ~500-token graph query. Check
+`index_status` (or `list_projects`) once per session; if the repo isn't
+indexed, run `index_repository` first, then use the tools — otherwise fall
+back to Grep/git log as usual. Full tool list and gotchas: `codebase-memory`
+skill.
+
+| Need | Call |
+|:-----|:-----|
+| Worst dead-code / fan-out candidates repo-wide | `search_graph(max_degree=0, exclude_entry_points=true)` / `search_graph(min_degree=10, direction="outbound")` |
+| Every caller of a function before touching it | `trace_path(function_name, direction="both", depth=3)` |
+| Repo-wide near-duplicates before merging | `search_graph(name_pattern="...")` |
+| Precise source range for one symbol (skip re-reading a huge file) | `get_code_snippet(qualified_name)` |
+| What a diff actually affects | `detect_changes()` |
+
 ## Workflow
 
 1. **Check the ledger.** If `.micro-optimiz.md` exists at the repo root, an
    in-progress multi-round change has priority: do its next step
    ([references/multi-round.md](references/multi-round.md)), then stop.
 2. **Pick the target.** The file(s) the user named; otherwise the files most
-   recently changed (`git log --since` / current diff). Daily mode: rotate —
-   don't re-polish yesterday's file, pick the next worst one.
+   recently changed (`git log --since` / current diff, or `detect_changes()`
+   if MCP is available). Daily mode: rotate — don't re-polish yesterday's
+   file; if no file is named, `search_graph(min_degree=10, direction="outbound")`
+   surfaces the highest fan-out (worst) candidate repo-wide.
 3. **Read the whole file, then its context.** Before reshaping a function,
    check its callers and siblings: a redesign must fit how the function is
    actually used, and the class design around it. Never redesign from the
-   body alone.
+   body alone. Prefer `trace_path(function_name, direction="both", depth=3)`
+   over grepping for callers — it catches cross-service calls grep misses.
 4. **Hunt in this order:**
    a. **Delete** — dead code, unused exports/params, commented-out blocks,
       speculative flexibility, redundant comments. Free wins first.
+      `search_graph(max_degree=0, exclude_entry_points=true)` finds
+      repo-wide dead code, not just what's visible in the current file.
    b. **Flatten** — guard clauses, merged conditions, removed else-branches,
       exhaustive matches instead of if-chains
       ([references/catalog.md](references/catalog.md) sections A & B).
@@ -87,10 +109,16 @@ Full patterns in [references/composition-fp.md](references/composition-fp.md)
    d. **Unify** — merge proven duplication (rule of three) into one generic,
       well-named helper; align divergent names for the same concept
       (catalog B9, C1, C11). Generic means *parametrizing what already
-      varies* — never speculative flexibility.
+      varies* — never speculative flexibility. Before merging,
+      `search_graph(name_pattern=".*similarName.*")` checks for repo-wide
+      near-duplicates so the new helper absorbs all of them, not just the
+      two in front of you.
    e. **Reshape** — the one function or class in the file with the worst
       complexity-to-purpose ratio; redesign it using the moves in
       [references/composition-fp.md](references/composition-fp.md).
+      `search_graph(min_degree=10, direction="outbound")` on the file's
+      functions confirms which one actually has the worst fan-out instead
+      of eyeballing it.
    Load the matching language profile from [languages/](languages/).
 5. **Size every candidate against the round budget.** Fits → apply now.
    Too big → don't shrink your ambition, shrink the step: slice it per

@@ -60,6 +60,13 @@ Load patterns only when needed:
 
 1. Ask for the target language/runtime if unknown (TypeScript/Node, Python, Go, etc.).
 2. Ask for the primary module boundary (feature name) and the IO needs (DB? HTTP? queue?).
+2b. If `codebase-memory-mcp` is available and this scaffold lands inside an
+   existing repo, check `index_status` first — index it (`index_repository`)
+   if it isn't yet, then call `get_architecture(aspects)`. The new module's
+   folder layout and dependency direction must match the codebase's actual
+   boundaries, not just the default layout below. No MCP, greenfield repo,
+   or not worth indexing for a single scaffold → use the default layout
+   as-is.
 3. Load only the files required by the context (language + patterns).
 4. Produce a file tree including `archi-<feature>.md`.
 5. Generate strictly-typed stubs that compile and remain obviously empty.

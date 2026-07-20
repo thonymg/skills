@@ -140,6 +140,27 @@ These words appear in several categories. Resolve them with this table:
 
 ---
 
+## RENAMING AN EXISTING IDENTIFIER — use the codebase graph
+
+Grep misses re-exports, aliases, and cross-service callers. If
+`codebase-memory-mcp` is available:
+
+0. `index_status` (or `list_projects`) — confirm the repo is indexed. Not
+   indexed yet → run `index_repository` first; a stale index (files changed
+   since last index) gives wrong "zero remaining hits" results in step 3, so
+   re-index rather than trust it blindly.
+1. `search_graph(name_pattern=".*oldName.*")` — every declaration/occurrence
+   of the current name, repo-wide (not just the current file).
+2. `trace_path(function_name="oldName", direction="both", depth=3)` — every
+   caller and callee, including cross-service edges a text search won't see.
+3. Rename the declaration and every site the graph returned, then re-run
+   `search_graph` for the old name — zero remaining hits confirms a clean
+   rename.
+
+No MCP available, or indexing isn't worth it for a one-off rename → fall
+back to Grep across the repo, and check the language's re-export /
+barrel-file conventions by hand.
+
 ## EXTENDING THE VOCABULARY
 
 If a word is missing from the vocabulary, do not invent it.
