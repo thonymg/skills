@@ -30,6 +30,8 @@ Or install globally with `-g`. Learn more at [vercel-labs/skills](https://github
 | [archi-vide](skills/archi-vide) | Empty, strongly-typed architecture scaffolding — code stubs with minimal comments and clear boundaries, no implementation | scaffold, skeleton, architecture, stubs, clean architecture, ports, adapters, repository |
 | [micro-optimiz](skills/micro-optimiz) | Daily micro-refactoring — one small behavior-preserving diff per round; big changes are sliced into a ledger and done over several rounds, never in one shot | optimize, simplify, refactor, clean up, dead code, duplication, error handling, SOLID, daily pass |
 | [fix-root](skills/fix-root) | Root-cause-first bug fix — ≥3 hypotheses before picking one, evidence and impact map via the codebase graph, failing test first, minimal fix, then re-verifies impact/consequences with the same graph before the full suite | fix this bug, corrige ce bug, root cause, RCA, cause profonde, debug this error, resolve this exception |
+| [plan-feat](skills/plan-feat) | Module-level implementation plans for a **new** feature or application — directive markdown plans (Gherkin, glossed math invariants), doc-coherence preflight, progress tracker, critique rounds; never writes code | implementation plan, plan d'implémentation, plan de feature, découpage en modules, planifier une application, /plan-feat |
+| [plan-update](skills/plan-update) | Update plans for an **existing** feature — current-state reconnaissance, impact analysis with ripple set, delta plans, data migration & deprecation, blocking coherence gates; revises plan files in place, never writes code | modifier une feature, faire évoluer, plan de modification, plan d'évolution, update/evolve a feature, /plan-update |
 
 ### naming-convention
 
@@ -77,6 +79,48 @@ every phase, not just to locate the bug.
   confirm no sibling occurrence of the same bug was left behind, then the
   full suite and a separate self-critique pass before reporting.
 
+### plan-feat
+
+Plans, never code: turns a prompt, a `*.md` spec, or a folder of specs into
+a `plans/<feature_slug>/` folder — one overview with a relation map, one
+directive plan file per module, one progress tracker.
+
+- **Doc-coherence preflight** before anything: all in-scope `*.md` docs
+  cross-checked against each other (architecture + naming axes), every
+  contradiction reported and then checked against the code for a double
+  report — never silently resolved.
+- **Calibrated scope**: small → a single `plan.md`; large → features →
+  modules → relations → sequential plan writing; whole application →
+  staged batches with a global tracker.
+- **Plans a small LLM can execute**: imperative steps that spell out the
+  exact `naming-convention` and `codebase-memory-mcp` calls with expected
+  results, Gherkin scenarios per behavior, invariants in closed
+  mathematical notation where **every formula carries its plain-language
+  gloss** ([math-notation.md](skills/plan-feat/references/math-notation.md)).
+- **Coherence as a protocol** ([coherence.md](skills/plan-feat/references/coherence.md)):
+  checklist after every plan, critique rounds until a round yields nothing
+  substantial.
+
+### plan-update
+
+Sibling of plan-feat for **change**: modify an existing feature or add
+features to an existing system. Shares plan-feat's references (template,
+trackers, coherence, math notation) instead of duplicating them.
+
+- **Reconnaissance first**: existing plans + code graph; each touched
+  element classified `existing / planned-only / absent`; code without
+  plans → reverse brief from the graph.
+- **Impact analysis before any plan**: `trace_path(direction="both")`
+  ripple set → impact table (`modified · new · deprecated · verify-only`)
+  in `00-overview.md`; nothing dropped silently.
+- **Delta plans in place** ([update-template.md](skills/plan-update/references/update-template.md)):
+  `Current state` (verbatim graph evidence), `Delta` (before → after,
+  glossed), `Migration & compatibility` (live data, rollback,
+  deprecation timeline), mandatory regression vigilance.
+- **Strict coherence gates**: blocking, evidence-backed check after every
+  revision, logged in the tracker; `done` only after a final full-set
+  gate on fresh evidence.
+
 ## How It Works
 
 Each skill is a `SKILL.md` with YAML frontmatter that tells the agent **when** and **how** to activate. Skills are triggered on-demand from the `description` field — e.g. `micro-optimiz` activates on "optimise ce fichier", "clean up", "passe quotidienne de refacto"; `naming-convention` on any naming/convention question.
@@ -102,6 +146,8 @@ Two layers, both wired for CI:
   ```
 
   Each case asserts whether the skill should trigger and which regexes the final answer must (or must not) match. Cases cover nominal moves, guard rails (no big-bang rewrite, `BUGFIX` labeling, no speculative generality), and negative prompts that must NOT trigger. Run `--without-skill` quarterly: if the bare model passes, the skill section is absorbed — slim it down.
+
+- **Per-skill eval specs** ([agentskills.io format](https://agentskills.io/skill-creation/evaluating-skills)) — `plan-feat` and `plan-update` ship their own `evals/` folder inside the skill directory: `evals.json` (3 test cases with assertions, for with/without-skill output grading) and `eval_queries.json` (10 trigger queries each, negatives are near-misses aimed at the sibling skill).
 
 ### Adding a Skill
 
