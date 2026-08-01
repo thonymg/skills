@@ -1,0 +1,42 @@
+[
+  {
+    "query": "faut faire évoluer la feature d'export : on ajoute le format Excel en plus du CSV existant, prépare-moi le plan de modification (pas de code)",
+    "should_trigger": true
+  },
+  {
+    "query": "Draft an update plan for adding SSO to our existing login flow — plans already exist under plans/auth/ and the code is running in production.",
+    "should_trigger": true
+  },
+  {
+    "query": "/plan-update ajouter la pagination à l'API produits existante",
+    "should_trigger": true
+  },
+  {
+    "query": "on doit modifier la feature de recherche pour passer du matching exact au fuzzy : révise les plans existants et fais l'analyse d'impact avant",
+    "should_trigger": true
+  },
+  {
+    "query": "Plan the changes to the checkout feature that's live in prod — I want an impact table, delta plans, and migration steps for existing orders. Planning only, no implementation.",
+    "should_trigger": true
+  },
+  {
+    "query": "Plan a brand-new referral program feature from scratch — nothing exists yet, no code, no plans, completely green field.",
+    "should_trigger": false
+  },
+  {
+    "query": "prépare le plan d'implémentation d'une toute nouvelle feature de messagerie instantanée, rien n'existe encore dans le projet",
+    "should_trigger": false
+  },
+  {
+    "query": "Modify the invoicing feature to support cancellations — the plan is already approved, go ahead and write the code now.",
+    "should_trigger": false
+  },
+  {
+    "query": "implémente la modification du module de tokens décrite dans plans/auth/02-token.md, les plans sont validés",
+    "should_trigger": false
+  },
+  {
+    "query": "Who calls PaymentService.call? Give me an impact analysis of removing that method from the codebase graph.",
+    "should_trigger": false
+  }
+]

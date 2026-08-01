@@ -1,0 +1,42 @@
+[
+  {
+    "query": "/plan-feat système de notifications in-app avec préférences par utilisateur",
+    "should_trigger": true
+  },
+  {
+    "query": "Peux-tu me faire un plan d'implémentation pour une nouvelle feature d'export CSV des factures ? Découpe en modules si nécessaire, mais n'écris pas de code.",
+    "should_trigger": true
+  },
+  {
+    "query": "I have a folder docs/specs/onboarding/ full of markdown specs — turn it into module-level implementation plans, one plan file per module, with a progress tracker. No code yet.",
+    "should_trigger": true
+  },
+  {
+    "query": "On part de zéro : planifie toute l'application à partir des docs produit dans docs/, avec un découpage en features puis en modules, étape par étape.",
+    "should_trigger": true
+  },
+  {
+    "query": "Before we start coding the referral program, draft the implementation plan: which modules, their dependencies, the build order, and what already exists in the codebase.",
+    "should_trigger": true
+  },
+  {
+    "query": "Le paiement en plusieurs fois existe déjà en prod — planifie son extension pour passer de 2x à 4x, avec analyse d'impact et plan de migration des données existantes.",
+    "should_trigger": false
+  },
+  {
+    "query": "The checkout feature shipped last month but the invoicing module just changed — update the existing plans with delta plans for the impacted modules.",
+    "should_trigger": false
+  },
+  {
+    "query": "Implémente maintenant la feature d'export CSV : écris le service, la migration et le endpoint API.",
+    "should_trigger": false
+  },
+  {
+    "query": "Follow plans/loyalty-program/01-tier-model.md and implement it — create the migration and the model exactly as specified.",
+    "should_trigger": false
+  },
+  {
+    "query": "Help me plan next week's sprint: which tickets should the team pick first and how do we split them across devs?",
+    "should_trigger": false
+  }
+]

@@ -1,0 +1,44 @@
+{
+  "skill_name": "plan-feat",
+  "evals": [
+    {
+      "id": "large-scope-casual-french",
+      "prompt": "salut ! sur mon app de billetterie on veut ajouter le paiement partagé : un client peut partager le montant d'une commande avec des amis, chacun paye sa part avant une date limite, relances auto par mail si quelqu'un n'a pas payé, et un petit écran de suivi des parts côté front. tu me prépares un plan pour tout ça ?",
+      "expected_output": "Scope calibrated as large (one mixed backend+frontend feature, several modules). A plans/<feature_slug>/ folder (slug validated via naming-convention, e.g. plans/paiement-partage/) containing: _progress.yml (feature tracker listing every module with status and depends_on); 00-overview.md (normalized brief, feature split into specific vs shared, module list with a one-sentence existence justification each, explicit relation map, topological implementation order with shared modules first); and one numbered plan file per module (01-<module>.md, 02-<module>.md, ...) covering backend modules (payment-split model + migration, split service, reminder job, API endpoint) and at least one frontend organism module (split-tracking screen). Each plan follows the template: Vigilance points and Anticipations written first, Need, Relations table (Module/Direction/Status/Nature), Invariants in mathematical notation each glossed in parentheses (e.g. Σ part.amount = order.total with its plain-language gloss), Gherkin scenarios, directive imperative implementation order citing naming-convention and codebase-memory-mcp calls, and Verification checks. Plans are written sequentially with a tracker update after each, plus at least one critique round. No implementation code anywhere.",
+      "assertions": [
+        "A plans/<feature_slug>/ folder is created containing _progress.yml, 00-overview.md, and at least 3 numbered module plan files matching the pattern NN-<module>.md",
+        "_progress.yml lists every numbered module plan file exactly once, each entry carrying a status from {todo, in_progress, written, critiqued} and a depends_on list",
+        "Every module plan file contains 'Vigilance points' and 'Anticipations' sections (2-3 items each) positioned before the 'Implementation order' section",
+        "Every module plan contains a Relations table with a Status column whose values are only 'existing', 'partial', or 'todo'",
+        "Every mathematical formula in the Invariants sections is immediately followed by a parenthesized plain-language gloss",
+        "No implementation code file is created or modified — the only outputs are .md and .yml files under plans/"
+      ]
+    },
+    {
+      "id": "doc-coherence-english-file-paths",
+      "prompt": "Plan the loyalty-program feature specified in docs/features/loyalty/overview.md, docs/features/loyalty/tiers.md and docs/features/loyalty/rewards.md. Before anything else, cross-check those specs against docs/architecture.md and docs/naming-conventions.md — those two are supposed to be the source of truth. The codebase is the Rails app at the repo root and is already indexed in codebase-memory-mcp. Write the plans under plans/loyalty-program/.",
+      "expected_output": "Every listed *.md file is read in full and a doc-coherence preflight report is produced BEFORE any plan file exists: doc-to-doc cross-check on architecture and naming axes (contradictions listed, or an explicit 'none found'), each contradiction then checked against the code for a double report (doc↔doc + doc↔code), with in-scope contradictions escalated to the user for arbitration rather than silently resolved. Then the plans/loyalty-program/ folder: _progress.yml feature tracker; 00-overview.md with the unified brief, feature/module split with one-sentence justifications, relation map, and topological implementation order (shared modules first); numbered module plans (01-*.md, 02-*.md, ...) written sequentially in that order with a tracker update after each. Module existence in the code is verified via search_graph/get_architecture before any module is marked 'todo' (existing code is never planned for recreation). Each plan uses directive imperative language, Gherkin scenarios, glossed mathematical invariants, and steps that spell out the exact naming-convention and codebase-memory-mcp calls with expected results. No implementation code.",
+      "assertions": [
+        "A doc-coherence report is produced before any file under plans/ is written: it cross-checks the three loyalty docs plus docs/architecture.md and docs/naming-conventions.md, and either lists doc-to-doc contradictions or explicitly states that none were found",
+        "Each reported doc-to-doc contradiction is also checked against the code, producing a double report (doc↔doc and doc↔code); no contradiction is silently resolved in the plans",
+        "plans/loyalty-program/00-overview.md exists and contains a relation map plus a topological implementation order in which shared modules come first",
+        "Every implementation-order step resting on an assumption about existing code spells out the exact codebase-memory-mcp call (search_graph(...), trace_path(...), or get_architecture(...)) with its expected result and a STOP-and-report conduct if the result differs",
+        "Every identifier introduced by the plans (tables, classes, files, routes) is covered by an explicit naming-convention invocation step; no improvised names appear",
+        "Each module plan contains Gherkin scenarios (Given/When/Then) covering at least the nominal case and each vigilance point, and _progress.yml entries match the numbered plan files one-to-one"
+      ]
+    },
+    {
+      "id": "tiny-scope-single-plan-calibration",
+      "prompt": "Plan this: track the last successful sign-in time for users. One new column last_login_at on the users table, set on each successful login, displayed on the admin user page. That's the whole scope — nothing else.",
+      "expected_output": "Phase 0 calibrates the scope as small (1 feature, ~1-5 files, 1 domain) and states why in one line, then stops the pipeline there: a single file plans/<feature_slug>/plan.md (e.g. plans/user-last-login/plan.md) following the module plan template — no module split, no 00-overview.md, no numbered NN-*.md files, no _progress.yml tracker. plan.md contains: Vigilance points and Anticipations first (e.g. timezone/UTC storage, write amplification on every login), Need, Relations table referencing the existing User model and auth flow with verified statuses, Invariants in mathematical notation each followed by a parenthesized gloss (e.g. last_login_at ≤ now, pre/post conditions of the sign-in transition), Gherkin scenarios for successful login, failed login (column untouched), and admin display, a directive imperative implementation order whose steps invoke naming-convention for last_login_at and run search_graph to confirm the column/behavior does not already exist, and Verification checks. No migration, model, or view code is written.",
+      "assertions": [
+        "The output contains a one-line calibration statement declaring the scope small (1 feature, ~1-5 files, 1 domain) before any plan content",
+        "Exactly one plan file is created, at plans/<feature_slug>/plan.md — no 00-overview.md, no numbered NN-<module>.md files, and no _progress.yml exist in the folder",
+        "plan.md follows the module plan template with 'Vigilance points' and 'Anticipations' sections appearing before 'Implementation order'",
+        "Every formula in the Invariants section is immediately followed by a parenthesized plain-language gloss",
+        "The implementation-order steps are imperative and include both an explicit naming-convention invocation for the new identifiers and a search_graph call verifying last_login_at does not already exist, with a STOP conduct if it does",
+        "No implementation code is written: no migration, model, controller, or view file is created or modified"
+      ]
+    }
+  ]
+}
