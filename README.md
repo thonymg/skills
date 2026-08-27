@@ -32,6 +32,7 @@ Or install globally with `-g`. Learn more at [vercel-labs/skills](https://github
 | [fix-root](skills/fix-root) | Root-cause-first bug fix — ≥3 hypotheses before picking one, evidence and impact map via the codebase graph, failing test first, minimal fix, then re-verifies impact/consequences with the same graph before the full suite | fix this bug, corrige ce bug, root cause, RCA, cause profonde, debug this error, resolve this exception |
 | [plan-feat](skills/plan-feat) | Module-level implementation plans for a **new** feature or application — directive markdown plans (Gherkin, glossed math invariants), doc-coherence preflight, progress tracker, critique rounds; never writes code | implementation plan, plan d'implémentation, plan de feature, découpage en modules, planifier une application, /plan-feat |
 | [plan-update](skills/plan-update) | Update plans for an **existing** feature — current-state reconnaissance, impact analysis with ripple set, delta plans, data migration & deprecation, blocking coherence gates; revises plan files in place, never writes code | modifier une feature, faire évoluer, plan de modification, plan d'évolution, update/evolve a feature, /plan-update |
+| [agents-md-sync](skills/agents-md-sync) | Lifecycle of the project's AGENTS.md/CLAUDE.md hierarchy — scaffold a new subfolder's local rules, sync the root map against real files, audit non-repetition/isolation/additive-contract/map-sync invariants | AGENTS.md, CLAUDE.md, scaffold feature, audit hiérarchie, synchroniser carte, créer un module avec ses conventions |
 
 ### naming-convention
 
@@ -120,6 +121,31 @@ trackers, coherence, math notation) instead of duplicating them.
 - **Strict coherence gates**: blocking, evidence-backed check after every
   revision, logged in the tracker; `done` only after a final full-set
   gate on fresh evidence.
+
+### agents-md-sync
+
+Enforces the model already in place in this repo: `AGENTS.md` = canonical
+content, `CLAUDE.md` = `@AGENTS.md` pointer, root = orchestration only,
+subfolders = local rules only (never repeat an ancestor, never mention a
+sibling without an explicit exception).
+
+- **`create <path> <role>`**: refuses if the target `AGENTS.md` already
+  exists. Builds a mandatory, never-hardcoded inventory of imposable
+  resources (project/global agents, the session's live skill list — which
+  covers plugin skills `ls` can't see, MCP servers from `.mcp.json` +
+  `claude mcp list`) merged by name, project scope wins ties, referenced
+  by name only (never a path). Generates `<path>/AGENTS.md` from
+  [AGENTS.template.md](skills/agents-md-sync/templates/AGENTS.template.md)
+  and a one-line `<path>/CLAUDE.md` pointer, then updates the root map and
+  runs `audit`.
+- **`sync`**: diffs the root `## Carte` section against the real
+  `AGENTS.md` files on disk (ghost entries / orphan files), proposes
+  additions/removals, writes only after explicit user validation.
+- **`audit`**: runs [audit.sh](skills/agents-md-sync/scripts/audit.sh)
+  (non-repetition, isolation, map-sync invariants) and
+  [check-additive.sh](skills/agents-md-sync/scripts/check-additive.sh)
+  (additive-contract candidate pairs — flags for human judgment, never
+  auto-resolves), portable bash only, zero dependencies.
 
 ## How It Works
 
