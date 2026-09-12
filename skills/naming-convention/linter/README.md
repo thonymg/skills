@@ -1,99 +1,107 @@
 # Linter — Convention de nommage
 
-Scripts bash qui mécanisent les règles **déterministes** du skill `naming-convention`.  
-Pas d'AST, pas de dépendances — `grep` + `sed` + `bash` uniquement.
+Mécanise les règles **déterministes** du skill `naming-convention`.
+Moteur : `nc-lint.pl` (Perl 5 de base). Zéro dépendance, lecture seule, un seul processus.
+
+## Principe : orienté identifiant, pas orienté ligne
+
+Le linter extrait d'abord les identifiants **déclarés** (fonction, méthode, classe,
+composant, variable, propriété, fichier), puis teste l'identifiant. Il ne teste jamais
+la ligne de texte brute.
+
+C'est ce qui élimine par construction — pas par liste d'exceptions — les faux positifs
+sur les attributs JSX (`data-testid`), les clés d'objet de style (`{ width: 100 }`),
+les sites d'appel (`next(error)`, `clearTimeout(ref)`), le destructuring d'API tierces
+(`const { data } = useQuery()`) et les liaisons d'import (`const User = require(…)`).
+Et c'est ce qui permet d'attraper les tokens **à l'intérieur** d'un identifiant :
+`getUserData` est signalé, `data-testid` ne l'est pas.
+
+Corollaire : un identifiant déclaré une fois = **un** finding, quel que soit son nombre
+d'usages.
 
 ## Usage
 
 ```bash
-# Scanner tout un projet
-./lint.sh /chemin/vers/projet
+./lint.sh <fichier-ou-dossier> [--json] [--only CHECK] [--summary] [--no-color]
 
-# Un seul check
-./lint.sh /chemin/vers/projet --only prefixes
-
-# Mode CI (résumé uniquement, sortie propre)
-./lint.sh /chemin/vers/projet --summary --no-color
-
-# Sortie machine (JSON)
-./lint.sh /chemin/vers/projet --json
-
-# Depuis le projet cible (cd dedans d'abord)
-cd mon-projet && /path/to/linter/lint.sh .
+./lint.sh src/user-service.ts            # un seul fichier (usage typique de l'agent)
+./lint.sh .                              # tout le projet
+./lint.sh . --only prefixes              # un seul check
+./lint.sh . --json                       # sortie machine, courte
 ```
 
-**Exit code** : `0` si aucune **erreur**, `1` sinon → intégrable en pre-commit ou CI.
+**Exit code** : `0` si aucune erreur, `1` sinon → intégrable en pre-commit ou CI.
 
-**Erreurs vs warnings** : les violations *structurelles* (verbe composé, mot vague,
-nom numéroté, terme sans unité, SCREAMING sur var/let, suffixe seul, casse de fichier)
-sont des **erreurs** et font échouer la CI. Les mots simplement *hors vocabulaire*
-(préfixe inconnu, entité inconnue devant un suffixe) sont des **warnings** : ils
-s'affichent mais ne bloquent pas — ajoute les mots intentionnels dans
-`vocabulary/custom.md`.
+## Checks
 
-Chaque check émet une dernière ligne machine-parsable
-`RESULT:<check>:errors=N:warnings=M` — c'est la seule ligne que `lint.sh` (et les
-tests) parsent ; un check qui crashe est signalé comme tel au lieu de produire un
-compteur fantaisiste.
+| Check | Règles | Sévérité |
+|---|---|---|
+| `casing-files` | `CASING` — casse du nom de fichier, par langage | erreur |
+| `casing-identifiers` | `CASING` `SCREAMING` — casse de l'identifiant selon son type et son langage | erreur |
+| `prefixes` | `PREFIX` `COMPOUND` — préfixe hors vocabulaire, verbe composé | erreur |
+| `forbidden` | `VAGUE` `NUMBERED` (erreur), `UNIT` (warning) | mixte |
+| `class-suffixes` | `SUFFIX` — classe (erreur) / composant (warning) sans suffixe reconnu | mixte |
+| `standalone-suffixes` | `STANDALONE` (erreur), `ENTITY?` (warning) | mixte |
 
----
+**Erreurs vs warnings** : une violation du vocabulaire ou de la structure est une
+**erreur** et bloque la CI. Les jugements contextuels (`UNIT`, `ENTITY?`, composant sans
+suffixe UI) sont des **warnings**.
 
-## Checks disponibles
+`UNIT` ne s'applique qu'aux **unités de temps** (`duration`, `timeout`, `delay`,
+`interval`, `ttl`) : `width`/`height`/`size` ont une unité implicite imposée par la
+plateforme, les signaler est du bruit.
 
-| Script | Tag | Sévérité | Ce qu'il vérifie |
-|--------|-----|----------|-----------------|
-| `checks/casing-files.sh` | `CASING` | erreur | Casse des fichiers **par langage** : kebab (JS/TS/CSS), snake (Python/Ruby/Dart), Pascal (Java/Kotlin/C#) |
-| `checks/prefixes.sh` | `PREFIX` | warning | Méthodes sans préfixe approuvé |
-| `checks/prefixes.sh` | `COMPOUND` | erreur | Verbes composés (`And`/`Or`) |
-| `checks/forbidden.sh` | `VAGUE` / `NUMBERED` / `UNIT` / `SCREAMING` | erreur | Mots vagues, noms numérotés, termes sans unité, SCREAMING sur var/let |
-| `checks/class-suffixes.sh` | `SUFFIX` | erreur | Classes sans suffixe infra/UI reconnu (skip les noms gérés par standalone) |
-| `checks/standalone-suffixes.sh` | `STANDALONE` | erreur | Suffixe seul comme nom de classe (Manager, Handler…) |
-| `checks/standalone-suffixes.sh` | `ENTITY?` | warning | Entité inconnue devant un suffixe (`DataManager`) |
+Chaque check émet une ligne machine-parsable `RESULT:<check>:errors=N:warnings=M`.
 
-**Langages scannés** : TypeScript/JavaScript, Python, **Ruby/Rails**.
-Spécificités Ruby prises en compte :
+## Langages
 
-- prédicats `active?` exempts du contrôle de préfixe (le `?` remplace `is_`/`has_`) ;
-- actions REST Rails (`index`, `show`, `new`, `edit`, `destroy`…) et hooks de
-  migration (`up`, `down`, `change`, `perform`) exemptés ;
-- classes `< ActiveRecord::Migration` ignorées (noms verbe-first légitimes) ;
-- classes de base `Application*` (ApplicationController, ApplicationRecord…) ignorées ;
-- pluriels Rails tolérés : `OrdersController` → entité `Order` ✅ ;
-- fichiers de migration timestampés (`20240101120000_create_orders.rb`) acceptés.
+| | Identifiants | Nom de fichier |
+|---|---|---|
+| TypeScript / JavaScript / TSX / JSX | ✅ | ✅ kebab ou Pascal |
+| Python | ✅ | ✅ snake |
+| Ruby / Rails | ✅ | ✅ snake + migrations timestampées |
+| Dart | — | ✅ snake |
+| Java / Kotlin / C# | — | ✅ Pascal |
+| CSS / SCSS / Sass / Less | — | ✅ kebab (+ partiels `_`, `*.module.*` exclus) |
+
+Spécificités prises en compte : composants React (fonction ou `const` PascalCase dans un
+`.tsx`/`.jsx`, y compris paramètres multi-lignes), prédicats Ruby (`active?`), actions REST
+Rails, migrations ActiveRecord, classes `Application*`, pluriels Rails
+(`OrdersController` → entité `Order`), dunders Python, conventions de test.
+
+## Vocabulaire
+
+Lu au **runtime** depuis `../vocabulary/*.md` — source unique de vérité, pas de copie à
+resynchroniser.
+
+Le projet cible peut étendre le vocabulaire via son propre `vocabulary/custom.md`
+(même format que celui du skill, qui sert de gabarit). Les mots sont **catégorisés par
+section** : un mot ajouté sous « Custom Entity Suffixes » vaut comme entité, pas comme
+préfixe.
+
+## Ce que le linter NE peut PAS vérifier
+
+| Règle | Pourquoi |
+|---|---|
+| `get` vs `fetch` vs `find` | demande de savoir si c'est sync / async / nullable |
+| Redondance contextuelle `user.getUserName()` | demande le type de l'appelant |
+| Pertinence de l'entité choisie | sémantique — `Order` vs `Cart` vs `Item` |
+| Décision d'ajout dans `custom.md` | jugement humain |
 
 ## Tests
 
 ```bash
-bash ../../../tests/run-linter-tests.sh   # ou npm test depuis la racine du repo
+bash ../../../tests/run-linter-tests.sh
 ```
 
-Fixtures avec compteurs attendus dans `tests/fixtures/` + `tests/expected.json`.
-
----
-
-## Ce que le linter NE peut PAS faire
-
-Ces règles restent de la responsabilité du LLM / du reviewer humain :
-
-| Règle | Pourquoi non automatisable |
-|-------|---------------------------|
-| Choisir `get` vs `fetch` vs `find` | Requiert comprendre sync/async/nullable |
-| Redondance contextuelle `user.getUserName()` | Nécessite l'analyse du type de l'appelant |
-| Pertinence de l'entité choisie | Sémantique — `Order` vs `Cart` vs `Item` |
-| Décision d'ajout dans `custom.md` | Jugement humain |
-
----
-
-## Étendre le vocabulaire
-
-1. Ajoute tes mots dans `vocabulary/custom.md` du skill
-2. Les scripts lisent automatiquement ce fichier s'il est dans le projet cible  
-   (cherche `*/vocabulary/custom.md` au moment du lint)
+Quatre fixtures : `violations` (compteurs attendus par check), `clean`, `custom-vocab`, et
+`realistic` — du vrai code React/TS/Python conforme, qui **doit** sortir 0 erreur. C'est le
+test anti-faux-positifs : sans lui, rien n'empêche le bruit de revenir à la prochaine
+modification de regex.
 
 ## Intégration pre-commit
 
 ```yaml
-# .pre-commit-config.yaml
 repos:
   - repo: local
     hooks:
@@ -103,14 +111,4 @@ repos:
         language: script
         pass_filenames: false
         args: ["."]
-```
-
-## Intégration package.json
-
-```json
-{
-  "scripts": {
-    "lint:naming": "/path/to/linter/lint.sh ."
-  }
-}
 ```

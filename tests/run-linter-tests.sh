@@ -84,6 +84,13 @@ bash "$LINTER_DIR/lint.sh" "$TESTS_DIR/fixtures/custom-vocab" --no-color >/dev/n
 rc=$?
 if [[ $rc -eq 0 ]]; then report PASS "custom-vocab" "lint.sh" "exit=0"; else report FAIL "custom-vocab" "lint.sh" "attendu exit=0, obtenu exit=$rc"; fi
 
+# Corpus réaliste : vrai code React/TS/Python conforme à la convention.
+# DOIT sortir 0 erreur — c'est le test anti-faux-positifs. Sans lui, rien
+# n'empêche le bruit de revenir à la prochaine modification de regex.
+bash "$LINTER_DIR/lint.sh" "$TESTS_DIR/fixtures/realistic" --no-color >/dev/null 2>&1
+rc=$?
+if [[ $rc -eq 0 ]]; then report PASS "realistic" "lint.sh" "exit=0"; else report FAIL "realistic" "lint.sh" "attendu exit=0, obtenu exit=$rc"; fi
+
 echo ""
 echo "═══════════════════════════════════════════════════════════"
 echo "  $PASS pass, $FAIL fail"

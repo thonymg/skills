@@ -2,6 +2,10 @@
 
 Load this file only when the user asks to add, remove, or review custom vocabulary words.
 
+⚠ `vocabulary/custom.md` lives **in the target repo**, not in the skill — that is the file
+the linter reads. The skill's own `vocabulary/custom.md` is the template to copy from.
+Words count only for the section they sit under: a custom entity is not a valid prefix.
+
 ---
 
 ## Add a word

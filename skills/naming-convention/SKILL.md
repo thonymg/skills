@@ -110,6 +110,31 @@ fetchUserOrderList  →  fetch | User | Order | List
 
 ---
 
+## MECHANICAL CHECK — run the linter
+
+The protocol above is the judgment half. The deterministic half is scripted — run it
+instead of re-reading your own output:
+
+```bash
+skills/naming-convention/linter/lint.sh <file-or-dir> [--json] [--only CHECK]
+```
+
+Run it **after writing or renaming identifiers** (pass the single file, not the repo),
+when the user asks to audit a file/folder/project, and before reporting a rename as done.
+Zero dependency (Perl 5), read-only — it never writes to the project. Exit 1 on error.
+`--json` returns `{"checks":{…},"errors":N,"warnings":M}` — prefer it to keep output short.
+
+| Severity | Rules | What to do |
+|:---------|:------|:-----------|
+| **error** | `CASING` `SCREAMING` `PREFIX` `COMPOUND` `VAGUE` `NUMBERED` `SUFFIX` `STANDALONE` | fix before delivering |
+| **warning** | `UNIT` (time unit unstated), `ENTITY?`, component without a UI suffix | judge case by case |
+
+The linter checks declared identifiers only. It cannot check, and you still must:
+`get` vs `fetch` vs `find`, contextual redundancy (`user.getUserName()`), and whether the
+chosen entity is the right one.
+
+---
+
 ## AMBIGUOUS TOKENS — one canonical category each
 
 These words appear in several categories. Resolve them with this table:
@@ -135,7 +160,8 @@ These words appear in several categories. Resolve them with this table:
 - **No numbered identifiers.** `status2`, `error3` ❌ — name the actual concept.
 - **No standalone infra suffix.** `Manager` ❌ → `OrderManager` ✅
 - **SCREAMING_SNAKE_CASE** only for true immutable constants. Never on `var` / `let`.
-- **Units when ambiguous.** `duration` ❌ → `durationInSeconds` ✅
+- **Units when ambiguous.** `duration` ❌ → `durationInSeconds` ✅ (the linter only
+  enforces this on time units — `width`/`height`/`size` have a platform-implicit unit)
 - **Classes are substantive nouns only.** `Ordering` ❌, `ManageUser` ❌
 
 ---
@@ -164,7 +190,10 @@ barrel-file conventions by hand.
 ## EXTENDING THE VOCABULARY
 
 If a word is missing from the vocabulary, do not invent it.
-Propose adding it to `vocabulary/custom.md` with its category and definition.
+Propose adding it to `vocabulary/custom.md` **in the target repo** (not in the skill) with
+its category and definition — that is the file the linter reads, and each word only counts
+for the section it sits under (a custom entity is not a valid prefix). Use the skill's own
+`vocabulary/custom.md` as the template to create it.
 Wait for confirmation before using it in any name.
 
 ---
@@ -177,3 +206,4 @@ Wait for confirmation before using it in any name.
 | `references/language-specific-rules.md` | User asks about a specific language |
 | `references/bootstrap-from-types.md` | User provides existing code to derive convention from |
 | `references/extending-vocabulary.md` | User wants to add words via CLI |
+| `linter/README.md` | You need the linter's rules, flags, or CI integration |
