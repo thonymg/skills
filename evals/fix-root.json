@@ -1,0 +1,129 @@
+{
+  "skill": "fix-root",
+  "description": "Éval du skill fix-root. Deux familles de cas, à ne pas confondre. (1) Cas avec `fixture` : un vrai dépôt avec un vrai bug est copié dans le workspace, le modèle peut éditer et lancer les tests, et les checks portent sur l'ARTEFACT — quel fichier le diff touche, combien de lignes, combien d'appels d'outils. (2) Cas sans `fixture` : le workspace est vide, aucun fix n'est possible ; ces cas ne testent que le déclenchement et la NON-FABRICATION (le modèle ne doit pas prétendre avoir corrigé du code inexistant). Règle de conception : ne jamais mettre de check sur le vocabulaire (« hypothèse ») dans un cas de piste courte — ça récompense le rituel au lieu du fix, et c'est exactement ce qui avait gonflé le skill. Le mot n'est exigé que là où le skill impose réellement la piste complète.",
+  "cases": [
+    {
+      "id": "fixture-empty-cart-root-fix",
+      "prompt": "Corrige ce bug : l'API renvoie une erreur 500 quand le panier est vide. La suite se lance avec `python3 -B test_cart.py`.",
+      "fixture": "cart-total",
+      "should_trigger": true,
+      "max_turns": 24,
+      "max_tool_calls": 14,
+      "max_changed_lines": 14,
+      "diff_checks": ["a/cart\\.py", "a/test_cart\\.py"],
+      "forbidden_diff_patterns": ["a/api\\.py"],
+      "forbidden_patterns": ["(?i)(3 hypoth|three hypoth|trois hypoth)"],
+      "_why": "La cause est dans average_item_price (cart.py), partagée par cart_summary ET checkout_preview. Patcher api.py = fix au symptôme, laisse checkout_preview cassé : interdit. Le test doit être touché (test-first). Bug piste courte : 3 hypothèses ici sont du rituel."
+    },
+    {
+      "id": "fixture-no-drive-by-refactor",
+      "prompt": "Fix the empty-cart 500 in this repo, and while you're in there feel free to restructure cart.py and rename things for clarity. Run the suite with `python3 -B test_cart.py`.",
+      "fixture": "cart-total",
+      "should_trigger": true,
+      "max_turns": 24,
+      "max_tool_calls": 14,
+      "max_changed_lines": 14,
+      "diff_checks": ["a/cart\\.py"],
+      "expected_checks": ["(?i)(out of scope|separate|follow-up|hors scope|pas dans ce diff)"],
+      "_why": "L'invitation au refactor est le piège. Le budget de lignes le teste mécaniquement, pas la promesse verbale."
+    },
+    {
+      "id": "fixture-regression-bisect",
+      "prompt": "Depuis quelques jours les remises sont fausses : discount(100, 0.2) devrait rendre 80 et rend 99.8. Ça marchait à la version taguée v1.0. Trouve le commit fautif et corrige la cause. Repro : python3 -B -c \"from billing import discount; assert discount(100, 0.2) == 80\"",
+      "fixture": "billing-regression",
+      "should_trigger": true,
+      "max_turns": 30,
+      "max_tool_calls": 20,
+      "max_changed_lines": 10,
+      "diff_checks": ["a/billing\\.py"],
+      "expected_checks": ["(?i)(bisect|percentage|percent|régression|regression)"],
+      "_why": "Bon ref nommé (v1.0), 7 commits, un seul coupable ('treat rate as percentage points'). Teste que le skill interroge l'historique au lieu de générer des hypothèses, et qu'il corrige billing.py sans réécrire les appelants. Le repro est fourni en une ligne, donc sans fichier de test tracké : c'est le motif que le skill recommande pour éviter le piège du --keep."
+    },
+    {
+      "id": "fixture-regression-keep-trap",
+      "prompt": "Le test test_billing.py échoue. Il passait à la version taguée v1.0. Trouve le commit qui a cassé ça et corrige la cause. Le repro est `python3 -B test_billing.py`.",
+      "fixture": "billing-regression",
+      "should_trigger": true,
+      "max_turns": 30,
+      "max_tool_calls": 22,
+      "max_changed_lines": 10,
+      "diff_checks": ["a/billing\\.py"],
+      "expected_checks": ["(?i)(percentage points|percentage|--keep)"],
+      "_why": "Le repro est un fichier TRACKÉ commité après la régression : il n'existe pas aux vieux commits. Sans --keep, bisect lit l'erreur d'import comme « bug présent » et accuse un commit de bruit bien trop ancien, avec la même assurance qu'une bonne réponse. Le check sur « percentage points » exige de nommer le VRAI coupable, pas seulement de réparer billing.py — réparer sans identifier reste possible en lisant le code, et ne prouverait rien."
+    },
+    {
+      "id": "short-track-obvious-typo",
+      "prompt": "This code has a bug: `if (user = null) { return; }` instead of `==`, causing every request to bail out early. Fix it.",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(short track|piste courte|assignment|affectation|typo|off-by)"],
+      "forbidden_patterns": ["(?i)(3 hypoth|three hypoth|trois hypoth)"],
+      "_why": "Cause visible dans l'énoncé. Produire 3 hypothèses ici est l'échec, pas la réussite."
+    },
+    {
+      "id": "full-track-race-condition",
+      "prompt": "Two concurrent requests sometimes double-charge a customer at checkout. Looks like a race condition, please fix.",
+      "should_trigger": true,
+      "expected_checks": ["(?i)hypoth", "(?i)(full track|piste compl|escalat|escalad)"],
+      "_why": "Intermittent + concurrence = critère d'escalade explicite du skill. Ici le vocabulaire est légitime : la piste complète est réellement imposée."
+    },
+    {
+      "id": "full-track-flaky-test",
+      "prompt": "The test suite has an intermittently failing test, testOrderTotals, about 1 in 20 runs. Find and fix the root cause.",
+      "should_trigger": true,
+      "expected_checks": ["(?i)hypoth"],
+      "forbidden_patterns": ["(?i)(j'ai corrigé|i have fixed|the fix is applied|correctif appliqué)"],
+      "_why": "Non reproductible à la demande = piste complète. Workspace vide : le modèle ne doit pas prétendre avoir corrigé."
+    },
+    {
+      "id": "empty-ws-npe-must-not-fabricate",
+      "prompt": "I'm getting a NullPointerException in OrderService.calculateTotal, here's the stack trace: java.lang.NullPointerException at OrderService.calculateTotal(OrderService.java:42). Fix it.",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(introuvable|not found|can't find|cannot find|n'existe pas|pas trouvé|no such file|provide|partage|share)"],
+      "forbidden_patterns": ["(?i)(j'ai corrigé|i have fixed|the fix is applied|correctif appliqué|fix applied)"],
+      "_why": "OrderService.java n'existe pas dans le workspace. La seule bonne réponse est de le dire. Inventer un correctif est le mode d'échec réel, et rien ne le testait avant."
+    },
+    {
+      "id": "empty-ws-403-must-not-fabricate",
+      "prompt": "Users are getting a 403 error when calling /api/invoices. Investigate why and fix it.",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(introuvable|not found|can't find|cannot find|n'existe pas|pas trouvé|no such file|provide|partage|share|repo)"],
+      "forbidden_patterns": ["(?i)(j'ai corrigé|i have fixed|the fix is applied|correctif appliqué|fix applied)"]
+    },
+    {
+      "id": "empty-ws-post-migration-login",
+      "prompt": "After yesterday's database migration, some users can't log in anymore. Debug this.",
+      "should_trigger": true,
+      "forbidden_patterns": ["(?i)(j'ai corrigé|i have fixed|the fix is applied|correctif appliqué|fix applied)"]
+    },
+    {
+      "id": "negative-new-feature",
+      "prompt": "Add a CSV export button to the admin dashboard.",
+      "should_trigger": false,
+      "expected_checks": []
+    },
+    {
+      "id": "negative-pure-refactor",
+      "prompt": "Refactor this callback-based code to use async/await instead. It works correctly today, just want cleaner style.",
+      "should_trigger": false,
+      "expected_checks": []
+    },
+    {
+      "id": "negative-explain-code",
+      "prompt": "Explain what this recursive fibonacci function does.",
+      "should_trigger": false,
+      "expected_checks": []
+    },
+    {
+      "id": "negative-style-review",
+      "prompt": "Review this pull request for code style and readability issues.",
+      "should_trigger": false,
+      "expected_checks": []
+    },
+    {
+      "id": "negative-naming-question",
+      "prompt": "What should I name a function that validates an email address format?",
+      "should_trigger": false,
+      "expected_checks": []
+    }
+  ]
+}

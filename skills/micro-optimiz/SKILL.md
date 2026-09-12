@@ -127,6 +127,17 @@ skill.
 6. **Apply, then verify.** Tests if they exist, otherwise type-checker or
    compiler, otherwise re-read the full diff. Verification fails → revert
    that change, don't patch forward.
+
+   **MECHANICAL CHECK — don't eyeball the round budget:**
+   ```bash
+   skills/micro-optimiz/scripts/verify-round.sh [--verify-cmd "<test/type-check cmd>"]
+   ```
+   Computes files-changed and lines-changed from `git diff --numstat` (exact,
+   not eyeballed) against the two hard limits, and runs `--verify-cmd` if
+   given as the behavior-preservation check. Exit 1 = over budget, slice
+   into [references/multi-round.md](references/multi-round.md) instead of
+   shrinking scope. Zero dependency (bash + git). It cannot count "at most
+   one structural reshape" — that stays a judgment call.
 7. **Report the delta.** Lines before → after, what was deleted, what was
    reshaped and why. State ledger status (steps remaining, or ledger
    deleted). End with observations: tomorrow's candidates.
