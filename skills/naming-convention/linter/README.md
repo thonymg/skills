@@ -79,6 +79,12 @@ Le projet cible peut étendre le vocabulaire via son propre `vocabulary/custom.m
 section** : un mot ajouté sous « Custom Entity Suffixes » vaut comme entité, pas comme
 préfixe.
 
+Recherché à la fois **en descendant** (un `vocabulary/custom.md` sous la cible) et **en
+remontant** depuis la cible jusqu'à la racine git (un `vocabulary/custom.md` au-dessus).
+Ce second sens est ce qui permet de linter un seul fichier profond dans l'arbre — le cas
+d'usage principal de l'agent — en trouvant quand même le vocabulaire défini à la racine
+du projet.
+
 ## Ce que le linter NE peut PAS vérifier
 
 | Règle | Pourquoi |
@@ -101,6 +107,12 @@ modification de regex.
 
 ## Intégration pre-commit
 
+`lint.sh` accepte plusieurs cibles (fichiers et/ou dossiers) en argument.
+Laisser pre-commit passer les fichiers **stagés** (`pass_filenames: true`) plutôt
+que de scanner tout le repo à chaque commit : sur un projet existant qui a déjà
+des violations, `args: ["."]` + `pass_filenames: false` bloquerait *tous* les
+commits futurs, même ceux qui ne touchent aucun fichier fautif.
+
 ```yaml
 repos:
   - repo: local
@@ -109,6 +121,11 @@ repos:
         name: Naming Convention Lint
         entry: /path/to/linter/lint.sh
         language: script
-        pass_filenames: false
-        args: ["."]
+        pass_filenames: true
+        types_or: [ts, tsx, javascript, jsx, python, ruby]
 ```
+
+**Adoption sur un repo existant** : lancer d'abord `./lint.sh . --summary` pour
+chiffrer la dette avant de brancher le hook — un legacy repo a presque toujours
+des violations `casing-files` (fichiers déjà nommés en camelCase, etc.) qu'il
+faut choisir de corriger ou de suivre, pas découvrir en pleine CI.

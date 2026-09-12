@@ -24,7 +24,11 @@ my $SCRIPT_DIR = dirname(abs_path($0));
 my $SKILL_DIR  = abs_path("$SCRIPT_DIR/..");
 
 # ─── Arguments ───────────────────────────────────────────────────────────────
-my ($TARGET, $ONLY, $JSON, $SUMMARY, $NOCOLOR) = ('.', '', 0, 0, 0);
+# Plusieurs cibles sont acceptées (fichiers et/ou dossiers) — nécessaire pour
+# qu'un hook pre-commit puisse passer juste les fichiers stagés (`pass_filenames:
+# true`) au lieu de scanner tout le repo à chaque commit.
+my @TARGETS;
+my ($ONLY, $JSON, $SUMMARY, $NOCOLOR) = ('', 0, 0, 0);
 while (@ARGV) {
     my $a = shift @ARGV;
     if    ($a eq '--only')     { $ONLY = shift @ARGV // '' }
@@ -32,8 +36,10 @@ while (@ARGV) {
     elsif ($a eq '--summary')  { $SUMMARY = 1 }
     elsif ($a eq '--no-color') { $NOCOLOR = 1 }
     elsif ($a =~ /^-/)         { die "Option inconnue : $a\n" }
-    else                       { $TARGET = $a }
+    else                       { push @TARGETS, $a }
 }
+@TARGETS = ('.') unless @TARGETS;
+my $TARGET = $TARGETS[0];   # affichage / rétro-compat des usages mono-cible
 my $USE_COLOR = (!$NOCOLOR && -t STDOUT) ? 1 : 0;
 sub c { my ($code, $s) = @_; $USE_COLOR ? "\e[${code}m$s\e[0m" : $s }
 
@@ -79,15 +85,39 @@ my $custom_map = {
 sub find_custom_vocab {
     my ($root) = @_;
     my @hits;
-    my $dir = -d $root ? $root : dirname($root);
+    my $dir = -d $root ? abs_path($root) : abs_path(dirname($root));
+    return unless defined $dir;
+
+    # ① Descendant depuis la cible — trouve vocabulary/custom.md sous un dossier.
     File::Find::find({ wanted => sub {
         $File::Find::prune = 1, return if -d $_ && /^(node_modules|\.git|dist|build|vendor)$/;
         push @hits, $File::Find::name
             if -f $_ && $_ eq 'custom.md' && $File::Find::dir =~ m{vocabulary/?$};
     }, no_chdir => 0 }, $dir) if -d $dir;
-    return sort @hits;
+
+    # ② Ascendant depuis la cible — cas principal documenté : l'agent lint UN
+    # fichier qu'il vient d'écrire, potentiellement profond dans l'arbre, alors
+    # que vocabulary/custom.md vit à la racine du projet. Sans ce parcours, le
+    # même fichier passe ou échoue selon qu'on lint le fichier ou tout le repo.
+    my $walk = $dir;
+    while (1) {
+        my $candidate = "$walk/vocabulary/custom.md";
+        push @hits, $candidate if -f $candidate;
+        last if -e "$walk/.git" || $walk eq '/';
+        my $parent = dirname($walk);
+        last if $parent eq $walk;
+        $walk = $parent;
+    }
+
+    my %seen; return grep { !$seen{$_}++ } sort @hits;
 }
-parse_vocab_file($_, undef, $custom_map) for find_custom_vocab($TARGET);
+my %custom_seen;
+for my $t (@TARGETS) {
+    for my $cf (find_custom_vocab($t)) {
+        next if $custom_seen{$cf}++;
+        parse_vocab_file($cf, undef, $custom_map);
+    }
+}
 
 # ─── Listes fixes (règles structurelles, pas du vocabulaire) ─────────────────
 my %VAGUE       = map { $_ => 1 } qw(data info temp tmp flag misc stuff thing);
@@ -99,6 +129,12 @@ my %NUM_OK      = map { $_ => 1 } qw(base64 sha1 sha256 sha512 md5 utf8 utf16 oa
                                      http2 http3 i18n a11y l10n x509 s3 ec2 vec2 vec3 vec4
                                      mat3 mat4 int8 int16 int32 int64 uint8 uint16 uint32
                                      float32 float64 argon2 md4 ipv4 ipv6 base32 crc32);
+# Conventions CSS/Tailwind/design-system : niveaux de titre, breakpoints, échelle
+# d'espacement — des noms de variable réels et fréquents en front, pas des
+# `status2` oubliés.
+my $NUM_OK_PATTERN = qr/^(?:h[1-6]|col\d+|row\d+|md\d+|lg\d+|sm\d+|xl\d+|xs\d+|
+                          px\d+|mt\d+|mb\d+|ml\d+|mr\d+|mx\d+|my\d+|
+                          pt\d+|pb\d+|pl\d+|pr\d+|px\d+|py\d+|z\d+)$/ix;
 my %EXEMPT_FN = map { $_ => 1 } qw(
     constructor tostring valueof tojson tolocalestring main
     render getderivedstatefromprops componentdidmount componentdidupdate
@@ -204,7 +240,7 @@ sub check_identifier {
     # ── 3. IDENTIFIANT NUMÉROTÉ (le NOM finit par un chiffre) ────────────────
     add('forbidden', 'NUMBERED', 'error', $file, $line, $name,
         'identifiant numéroté — nomme le concept explicitement')
-        if $bare =~ /[0-9]$/ && !$NUM_OK{lc $bare} && !is_scream($bare);
+        if $bare =~ /[0-9]$/ && !$NUM_OK{lc $bare} && !is_scream($bare) && $bare !~ $NUM_OK_PATTERN;
 
     # ── 4. UNITÉ AMBIGUË (temps uniquement) → warning ────────────────────────
     if (@tok && $UNIT_AMBIG{lc $tok[-1]} && $name !~ /[Ii]n[A-Z_]/) {
@@ -225,19 +261,27 @@ sub check_identifier {
     }
 
     # ── 6. SUFFIXE DE CLASSE / COMPOSANT ─────────────────────────────────────
+    # SUFFIX ne s'applique qu'aux classes (Service/Repository/...) : convention
+    # à haute conformité dans le vrai code. Un composant React nommé par son
+    # rôle sans suffixe générique (`SlideA`, `CarouselLogin`, `App`) est un
+    # usage courant et légitime, pas une violation — mesuré : 71 warnings sur
+    # un projet réel de 150 fichiers, presque aucun vrai. Le pattern 7 du
+    # SKILL.md reste un guide de génération pour le LLM, pas une règle d'audit.
     if ($kind eq 'class' || $kind eq 'component') {
         my $last = $tok[-1];
-        my $ok = in_vocab($last, 'INFRA', 'UI', 'COLLECTION')
-              || $bare =~ /Error$/
-              || is_entity_like($bare)
-              || is_entity_like($last)
-              || $STANDALONE{lc $bare};   # reporté par STANDALONE — pas deux fois
-        if (!$ok) {
-            my $sev = $kind eq 'component' ? 'warning' : 'error';
-            add('class-suffixes', 'SUFFIX', $sev, $file, $line, $name,
-                'suffixe non reconnu — attend un suffixe infra/UI ou une entité du vocabulaire');
+        if ($kind eq 'class') {
+            my $ok = in_vocab($last, 'INFRA', 'UI', 'COLLECTION')
+                  || $bare =~ /Error$/
+                  || is_entity_like($bare)
+                  || is_entity_like($last)
+                  || $STANDALONE{lc $bare};   # reporté par STANDALONE — pas deux fois
+            add('class-suffixes', 'SUFFIX', 'error', $file, $line, $name,
+                'suffixe non reconnu — attend un suffixe infra/UI ou une entité du vocabulaire')
+                unless $ok;
         }
-        # Suffixe structurel seul, ou entité inconnue devant lui
+        # Suffixe structurel seul, ou entité inconnue devant lui — reste vérifié
+        # pour les composants : `Manager` ou `DataManager` n'est légitime dans
+        # aucun des deux cas.
         if ($STANDALONE{lc $bare}) {
             add('standalone-suffixes', 'STANDALONE', 'error', $file, $line, $name,
                 "suffixe seul sans entité — ex: User$bare, Order$bare");
@@ -419,14 +463,17 @@ sub check_filename {
 # ─── Parcours ────────────────────────────────────────────────────────────────
 my @FILES;
 my $SKIP_DIR = qr/^(node_modules|\.git|dist|build|vendor|coverage|__pycache__|\.venv|venv|\.next|target|out|tmp)$/;
-if (-f $TARGET) { @FILES = ($TARGET) }
-else {
-    File::Find::find({ wanted => sub {
-        if (-d $_) { $File::Find::prune = 1 if $_ =~ $SKIP_DIR; return }
-        push @FILES, $File::Find::name
-            if -f $_ && /\.(ts|tsx|js|jsx|mjs|cjs|py|rb|dart|java|kt|cs|css|scss|sass|less)$/;
-    }, no_chdir => 0 }, $TARGET) if -d $TARGET;
+for my $t (@TARGETS) {
+    if (-f $t) { push @FILES, $t }
+    elsif (-d $t) {
+        File::Find::find({ wanted => sub {
+            if (-d $_) { $File::Find::prune = 1 if $_ =~ $SKIP_DIR; return }
+            push @FILES, $File::Find::name
+                if -f $_ && /\.(ts|tsx|js|jsx|mjs|cjs|py|rb|dart|java|kt|cs|css|scss|sass|less)$/;
+        }, no_chdir => 0 }, $t);
+    }
 }
+{ my %seen_file; @FILES = grep { !$seen_file{$_}++ } @FILES; }
 
 for my $file (sort @FILES) {
     check_filename($file);
@@ -455,7 +502,8 @@ my $WARNINGS = 0; $WARNINGS += $COUNT{$_}{warnings} for @CHECKS;
 
 if ($JSON) {
     my $checks = join ',', map { "\"$_\":{\"errors\":$COUNT{$_}{errors},\"warnings\":$COUNT{$_}{warnings}}" } @CHECKS;
-    my $t = $TARGET; $t =~ s/"/\\"/g;
+    my $t = @TARGETS == 1 ? $TARGETS[0] : scalar(@TARGETS) . " cibles";
+    $t =~ s/"/\\"/g;
     print "{\"target\":\"$t\",\"files\":" . scalar(@FILES) . ",\"checks\":{$checks},\"broken\":[],\"errors\":$ERRORS,\"warnings\":$WARNINGS}\n";
     exit($ERRORS > 0 ? 1 : 0);
 }
