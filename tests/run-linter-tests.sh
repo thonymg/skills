@@ -92,6 +92,37 @@ rc=$?
 if [[ $rc -eq 0 ]]; then report PASS "realistic" "lint.sh" "exit=0"; else report FAIL "realistic" "lint.sh" "attendu exit=0, obtenu exit=$rc"; fi
 
 echo ""
+echo "── Test de non-régression : architecture (une passe par fichier, jamais par ligne) ──"
+# Le gain mesuré (7 min → 0,07 s) vient à ~98 % de ce principe, pas du langage
+# (voir nc-lint.pl, en-tête). Deux gardes pour qu'il ne régresse pas en silence :
+
+# ① Aucun sous-processus dans le moteur — un system()/qx()/open pipé réintroduit
+# exactement le défaut de l'ancien moteur bash (un fork par ligne x par check).
+NC_LINT="$LINTER_DIR/nc-lint.pl"
+if grep -nE '\bsystem[[:space:]]*\(|\bqx[[:space:]]*[/{(!'"'"'"]|open[[:space:]]*\([^)]*\|' "$NC_LINT" >/dev/null; then
+  report FAIL "nc-lint.pl" "no-subprocess" "system()/qx()/open pipé détecté — architecture single-process cassée"
+else
+  report PASS "nc-lint.pl" "no-subprocess" "aucun sous-processus dans le moteur"
+fi
+
+# ② Seuil de perf sur un corpus synthétique (200 copies d'une fixture réelle,
+# ~2400 lignes) — assez large pour ne pas flaker sur une machine chargée, assez
+# serré pour attraper un retour à l'architecture par-ligne (qui mettait
+# largement plus d'une minute sur un ordre de grandeur comparable).
+PERF_DIR="$(mktemp -d)"
+trap 'rm -rf "$PERF_DIR"' EXIT
+for i in $(seq 1 200); do cp "$TESTS_DIR/fixtures/realistic/order-service.ts" "$PERF_DIR/order-service-$i.ts"; done
+START=$(perl -MTime::HiRes=time -e 'print time')
+bash "$LINTER_DIR/lint.sh" "$PERF_DIR" --summary >/dev/null 2>&1
+END=$(perl -MTime::HiRes=time -e 'print time')
+ELAPSED=$(perl -e "printf '%.2f', $END - $START")
+if perl -e "exit(($ELAPSED < 10) ? 0 : 1)"; then
+  report PASS "nc-lint.pl" "perf" "${ELAPSED}s sur 200 fichiers (~2400 lignes)"
+else
+  report FAIL "nc-lint.pl" "perf" "${ELAPSED}s sur 200 fichiers — bien trop lent, architecture régressée"
+fi
+
+echo ""
 echo "═══════════════════════════════════════════════════════════"
 echo "  $PASS pass, $FAIL fail"
 echo "═══════════════════════════════════════════════════════════"

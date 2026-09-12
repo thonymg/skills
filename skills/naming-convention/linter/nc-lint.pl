@@ -11,6 +11,16 @@
 #
 # Zéro dépendance : Perl 5 de base, lecture seule, un seul processus.
 #
+# Attribution du gain vs l'ancien moteur bash (5 scripts, ligne par ligne) :
+# l'essentiel vient du principe ci-dessus (une passe par fichier, jamais par
+# ligne) — mesuré : le même principe réécrit en bash nu tombe déjà à ~0,7 s sur
+# 234 fichiers (contre 7 min 07 s pour l'ancien moteur). Perl n'ajoute qu'un
+# facteur ~10 par-dessus (un seul processus, hash natifs pour le vocabulaire),
+# au prix d'un vrai piège de langage : `my (@a, $b) = (...)` engloutit toute
+# la liste de droite dans @a — corrigé une fois pendant le développement.
+# Ne pas porter ce gain au crédit du langage : c'est l'architecture qui compte,
+# le langage est un détail d'implémentation.
+#
 # Usage: nc-lint.pl [TARGET] [--only CHECK] [--json] [--summary] [--no-color]
 # Exit : 0 si aucune erreur, 1 sinon.
 

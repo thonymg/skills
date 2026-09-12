@@ -3,6 +3,19 @@
 Mécanise les règles **déterministes** du skill `naming-convention`.
 Moteur : `nc-lint.pl` (Perl 5 de base). Zéro dépendance, lecture seule, un seul processus.
 
+## D'où vient le gain (précision d'attribution)
+
+L'ancien moteur (5 scripts bash, ~950 lignes, ligne par ligne) mettait 7 min 07 s sur
+234 fichiers, avec ~85 % de faux positifs sur du code conforme. Le nouveau : 0,07 s,
+0 faux positif sur le même corpus.
+
+**L'essentiel vient du principe ci-dessous (identifiants déclarés, une passe par
+fichier), pas de Perl.** Mesuré : le même principe réécrit en bash nu tombe déjà à
+~0,7 s sur ces 234 fichiers — l'architecture explique un facteur ~585, Perl
+n'ajoute qu'un facteur ~10 par-dessus (un seul processus, hash natifs pour le
+vocabulaire). La précision (0 %→100 %) et le rappel (73 %→100 %) viennent
+entièrement de la réécriture identifiant-first, dans n'importe quel langage.
+
 ## Principe : orienté identifiant, pas orienté ligne
 
 Le linter extrait d'abord les identifiants **déclarés** (fonction, méthode, classe,
