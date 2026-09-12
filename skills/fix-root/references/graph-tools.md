@@ -6,14 +6,8 @@ and grep instead, and say that is what you did.
 
 ## Before the first call
 
-**Prefix.** Tool names below are written bare and are not callable as
-written. Add your harness's prefix: `cbm_` under pi,
-`mcp__codebase-memory-mcp__` under Claude Code.
-
-**Lazy activation (pi only).** `trace_path`, `query_graph`,
-`detect_changes`, `get_architecture` and `get_graph_schema` are lazy —
-call `cbm_search_tools` first to activate them. No such step under Claude
-Code.
+Prefix and pi lazy-activation rules: SKILL.md. They apply to every call
+below.
 
 **Index freshness.** Check `index_status` first — under pi, which has no
 `index_status` equivalent, use `list_projects` + `check_index_coverage`.

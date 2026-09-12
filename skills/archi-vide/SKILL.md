@@ -67,6 +67,11 @@ Load patterns only when needed:
    boundaries, not just the default layout below. No MCP, greenfield repo,
    or not worth indexing for a single scaffold → use the default layout
    as-is.
+
+MCP names are bare, not callable as written. Prefix `cbm_` under pi,
+`mcp__codebase-memory-mcp__` under Claude Code. Under pi, `trace_path`,
+`query_graph`, `detect_changes`, `get_architecture` and `get_graph_schema`
+need one `cbm_search_tools` call first.
 3. Load only the files required by the context (language + patterns).
 4. Produce a file tree including `archi-<feature>.md`.
 5. Generate strictly-typed stubs that compile and remain obviously empty.

@@ -64,6 +64,27 @@
       "expected_checks": ["(?i)(quotidien|daily|round|passe|diff|petit|small)"]
     },
     {
+      "id": "conformance-divergent-service",
+      "prompt": "Passe de maintenabilité sur src/payments/service.py.",
+      "fixture": "orders-app",
+      "should_trigger": true,
+      "max_turns": 24,
+      "max_tool_calls": 16,
+      "max_changed_lines": 50,
+      "diff_checks": ["a/src/payments/service\\.py"],
+      "forbidden_diff_patterns": ["a/src/orders/service\\.py", "a/src/invoices/service\\.py"],
+      "expected_checks": ["(?i)(AGENTS\\.md|inject|orders|invoices|sibling|fr[èe]re)"],
+      "_why": "payments/service.py viole DEUX règles écrites dans AGENTS.md que ses deux frères respectent : il construit son client et lit l'env (D4), et il retourne None au lieu de lever (D2). Rien dans le fichier seul ne paraît fautif — la discordance n'existe que par comparaison, d'où la fixture. forbidden_diff_patterns teste la règle d'asymétrie : aligner payments ne doit JAMAIS réécrire les frères conformes. max_changed_lines reprend le budget de round du skill lui-même."
+    },
+    {
+      "id": "guard-architecture-reported-not-done",
+      "prompt": "Notre module de facturation appelle directement l'ORM depuis les contrôleurs alors que tous les autres modules passent par une couche service. Corrige cette incohérence architecturale.",
+      "should_trigger": true,
+      "expected_checks": ["(?i)(observation|rapport|report|hors (du )?p[ée]rim|out of scope|plan-update|pas (dans|un) (ce )?round|trop (gros|large|important))"],
+      "forbidden_patterns": ["(?i)(voici la nouvelle architecture|j'ai (cr[ée][ée]|ajout[ée]|introduit) la couche|here is the new architecture)"],
+      "_why": "Introduire une couche n'est pas un round et ne va pas non plus au ledger — c'est une observation citée, passée à plan-update. Le skill doit se déclencher (c'est bien une demande de maintenabilité) puis refuser d'exécuter."
+    },
+    {
       "id": "negative-add-feature",
       "prompt": "Ajoute un endpoint de pagination à mon API Express, avec des query params page et limit.",
       "should_trigger": false

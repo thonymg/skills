@@ -36,6 +36,11 @@ skill exists to avoid.
 | `references/graph-tools.md` | `codebase-memory-mcp` is available and you are about to call it |
 | `references/test-first.md` | The red→green check misbehaves, or its script is missing |
 
+MCP names are bare, not callable as written. Prefix `cbm_` under pi,
+`mcp__codebase-memory-mcp__` under Claude Code. Under pi, `trace_path`,
+`query_graph`, `detect_changes`, `get_architecture` and `get_graph_schema`
+need one `cbm_search_tools` call first.
+
 ## Triage — two questions before touching a tool
 
 **Is this a regression?** Did the behavior ever work — a release, a tag, a

@@ -73,6 +73,11 @@ any other.
    relations, statuses) before planning the change. Nothing exists at
    all → this is green field: use `plan-feat` instead.
 
+MCP names are bare, not callable as written. Prefix `cbm_` under pi,
+`mcp__codebase-memory-mcp__` under Claude Code. Under pi, `trace_path`,
+`query_graph`, `detect_changes`, `get_architecture` and `get_graph_schema`
+need one `cbm_search_tools` call first.
+
 ## Phase 0 — Calibration
 
 - **Small** (one module touched, no relation added/removed/redirected) →

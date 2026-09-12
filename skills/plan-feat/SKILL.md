@@ -48,6 +48,11 @@ four steps on every project `*.md` touching the scope.
 | What already exists in the code | `codebase-memory-mcp`: `index_status` first (index if absent/stale), then `search_graph`, `get_architecture`, `trace_path`, `get_code_snippet` |
 | Feature with design/UI | Browser-controller MCP if available (inspect existing screens) + skill `ui` for maquina contracts |
 
+MCP names are bare, not callable as written. Prefix `cbm_` under pi,
+`mcp__codebase-memory-mcp__` under Claude Code. Under pi, `trace_path`,
+`query_graph`, `detect_changes`, `get_architecture` and `get_graph_schema`
+need one `cbm_search_tools` call first.
+
 Never plan on an unindexed repo: the `existing / todo` relations would be
 guesses.
 

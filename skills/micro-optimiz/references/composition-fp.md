@@ -122,6 +122,38 @@ the non-null value down. Types tighten, checks vanish.
 - If the reshape needs a comment to explain, it failed — revert to the
   clearer shape.
 
+## 11. Two-purpose function → two functions
+
+A function whose name needs "and" to be accurate, or whose body has two
+clearly separable halves (validate then persist, parse then format), splits
+along that seam. Keep a thin caller that does both if the call sites expect
+one entry point — the split is about the bodies, not about forcing every
+caller to change.
+
+## 12. Needless indirection → inlined
+
+A wrapper that only forwards its arguments, a one-line helper called once,
+an interface with a single implementation and no test seam: delete it and
+inline the body. This is the inverse of move 8 and they arbitrate the same
+way — an indirection earns its place by removing a decision from the
+caller, not by existing.
+
+## 13. Overlapping helpers → one generic helper
+
+Two or three helpers that differ only in a value, a key, or a comparator
+collapse into one that takes it as a parameter; the wrappers go. Generic
+means **parametrizing what already varies** — rule of three, never
+speculation. See catalog C11 for the smell and C7 for the trap.
+
+## Patterns, and which ones are allowed
+
+The only design patterns used here are the lightweight ones that **remove**
+branches: strategy-as-a-function, lookup table, null object. A pattern that
+adds a class, an interface or a level of indirection without deleting a
+branch is a pattern for its own sake — it fails the round budget and the
+readability guardrails at once. Never introduce one to "prepare" for a
+variation that does not exist yet.
+
 ## Scoring a reshape
 
 Worth doing when at least two hold: lines shrink, nesting shrinks, a

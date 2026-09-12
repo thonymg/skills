@@ -116,7 +116,7 @@ The protocol above is the judgment half. The deterministic half is scripted — 
 instead of re-reading your own output:
 
 ```bash
-skills/naming-convention/linter/lint.sh <file-or-dir> [--json] [--only CHECK]
+<skill-dir>/linter/lint.sh <file-or-dir> [--json] [--only CHECK]
 ```
 
 Run it **after writing or renaming identifiers** (pass the single file, not the repo),
@@ -170,6 +170,11 @@ These words appear in several categories. Resolve them with this table:
 
 Grep misses re-exports, aliases, and cross-service callers. If
 `codebase-memory-mcp` is available:
+
+MCP names are bare, not callable as written. Prefix `cbm_` under pi,
+`mcp__codebase-memory-mcp__` under Claude Code. Under pi, `trace_path`,
+`query_graph`, `detect_changes`, `get_architecture` and `get_graph_schema`
+need one `cbm_search_tools` call first.
 
 0. `index_status` (or `list_projects`) — confirm the repo is indexed. Not
    indexed yet → run `index_repository` first; a stale index (files changed
