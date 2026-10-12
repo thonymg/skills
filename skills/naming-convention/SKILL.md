@@ -2,9 +2,10 @@
 name: naming-convention
 description: Structured naming convention system for code identifiers.
   Use when naming or renaming variables, functions, methods, classes, files,
-  DB tables/columns, routes, or CSS classes; when validating identifiers against
-  a convention; or when the user mentions naming, camelCase, snake_case,
-  kebab-case, prefixes, or suffixes. Enforces a closed vocabulary
+  directories, DB tables/columns, routes, links, host labels, or CSS classes;
+  when validating identifiers against a convention; or when the user mentions
+  naming, camelCase, snake_case, kebab-case, prefixes, suffixes, folders,
+  subdomains, or slugs. Enforces a closed vocabulary
   (prefix + entity + suffix) with per-language casing rules.
 ---
 
@@ -68,10 +69,24 @@ files nor `custom.md`, the name is invalid — propose adding the word to `custo
 | File — Java, Kotlin, C# | `PascalCase` (= class name) | `UserService.java` |
 | DB column / table | `snake_case` | `order_status`, `created_at` |
 | Global immutable constant | `SCREAMING_SNAKE_CASE` | `MAX_RETRY_COUNT` |
-| URL / CSS class / route | `kebab-case` | `/api/user-list`, `.order-card` |
+| Directory | same casing as the file rule for that language | `user-service/` (TS), `UserCard/` (React), `order_repository/` (Python) |
+| URL path / link slug / CSS class | `kebab-case` | `/api/user-list`, `.order-card` |
+| Host label (subdomain or hostname) | `kebab-case`, one label, no underscore | `order-service` in `order-service.example.com` |
+| Env var derived from those tokens | `SCREAMING_SNAKE_CASE` | `ORDER_SERVICE_URL` |
 
-⚠ Never apply kebab-case to Python/Dart/Ruby files: `order-repository.py` is not
-importable. The casing follows the language, the vocabulary stays identical.
+⚠ Never apply kebab-case to Python/Dart/Ruby files or packages: `order-repository.py`
+is not importable. The casing follows the language, the vocabulary stays identical.
+
+## PATHS, LINKS, AND HOST LABELS
+
+Same tokens on every surface. Only the casing changes. Do not invent a second name.
+
+- A directory uses the file rule of its language. TypeScript: `user-service/`. React component directory: `UserCard/`. Python package: `order_repository/`.
+- A link, route, or other URL path is kebab-case segments: `/api/user-list`. Do not put `userList` or `user_list` in a path.
+- A host label is the single word between dots. It is kebab-case: `order-service.example.com`. Underscores are not a valid hostname label. The dot separates labels; it is not part of the name.
+- An environment variable built from those tokens is `SCREAMING_SNAKE_CASE`: `ORDER_SERVICE_URL`.
+- Tokens still come from the vocabulary. `order-service` is valid. `stuff-service` is not.
+- Do not put account names, machine names, secret values, or a private inventory into the name.
 
 ---
 
@@ -129,9 +144,9 @@ Zero dependency (Perl 5), read-only — it never writes to the project. Exit 1 o
 | **error** | `CASING` `SCREAMING` `PREFIX` `COMPOUND` `VAGUE` `NUMBERED` `SUFFIX` `STANDALONE` | fix before delivering |
 | **warning** | `UNIT` (time unit unstated), `ENTITY?`, component without a UI suffix | judge case by case |
 
-The linter checks declared identifiers only. It cannot check, and you still must:
-`get` vs `fetch` vs `find`, contextual redundancy (`user.getUserName()`), and whether the
-chosen entity is the right one.
+The linter checks declared identifiers only. It cannot check directories, URL
+segments, or host labels. You still must judge `get` vs `fetch` vs `find`, contextual
+redundancy (`user.getUserName()`), and whether the chosen entity is the right one.
 
 ---
 
@@ -157,6 +172,7 @@ These words appear in several categories. Resolve them with this table:
 - **No word outside the vocabulary.** Add it to `custom.md` first, then use it.
 - **No contextual redundancy.** `user.getUserName()` ❌ → `user.getName()` ✅
 - **No vague words.** `data`, `info`, `temp`, `flag`, `misc`, `stuff`, `thing` are forbidden everywhere.
+- **One name across surfaces.** The directory, the link segment, and the host label use the same tokens. `user-svc` next to `user-service` is invalid.
 - **No numbered identifiers.** `status2`, `error3` ❌ — name the actual concept.
 - **No standalone infra suffix.** `Manager` ❌ → `OrderManager` ✅
 - **SCREAMING_SNAKE_CASE** only for true immutable constants. Never on `var` / `let`.
