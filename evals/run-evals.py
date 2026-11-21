@@ -47,11 +47,7 @@ def detect_trigger(events, skill):
     exploration et faisait échouer les cas négatifs pour avoir regardé.
     """
     for event in events:
-        message = event.get("message") or {}
-        content = message.get("content") or []
-        if not isinstance(content, list):
-            continue
-        for block in content:
+        for block in message_blocks(event):
             if not (isinstance(block, dict) and block.get("type") == "tool_use"):
                 continue
             payload = json.dumps(block.get("input") or {})
@@ -66,12 +62,20 @@ def detect_trigger(events, skill):
     return False
 
 
+def message_blocks(event):
+    """Blocs de contenu d'un événement stream-json. Certains événements
+    (erreurs, système) portent `message` en chaîne : aucun bloc alors."""
+    message = event.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    return content if isinstance(content, list) else []
+
+
 def collect_metrics(events):
     """Appels d'outils effectués, plus coût/tours depuis l'événement result."""
     names = [
         block.get("name")
         for event in events
-        for block in (event.get("message") or {}).get("content") or []
+        for block in message_blocks(event)
         if isinstance(block, dict) and block.get("type") == "tool_use"
     ]
     result = next((e for e in reversed(events) if e.get("type") == "result"), {})
@@ -83,6 +87,18 @@ def collect_metrics(events):
         "cost_usd": result.get("total_cost_usd"),
         "output_tokens": usage.get("output_tokens"),
     }
+
+
+TRACKS = {"short": "short", "courte": "short", "full": "full", "complète": "full",
+          "complete": "full", "regression": "regression", "régression": "regression"}
+TRACK_RE = re.compile(r"(?i)\b(short|full|regression)[ -]track\b"
+                      r"|\b(?:track|piste)\W{0,4}(short|full|regression|courte|complète|complete|régression)\b")
+
+
+def announced_track(text):
+    """Piste annoncée dans la réponse finale (première mention), ou None."""
+    match = TRACK_RE.search(text or "")
+    return TRACKS[(match.group(1) or match.group(2)).lower()] if match else None
 
 
 def install_fixture(workspace, fixture):
@@ -200,6 +216,7 @@ def run_case(case, skill, with_skill, model, timeout, calibrate=False, without_s
         reasons.append(f"fix non minimal: {changed_lines} lignes > {max_lines}")
 
     metrics["changed_lines"] = changed_lines
+    metrics["track"] = announced_track(final_text)
     return {"passed": not reasons, "reason": "; ".join(reasons),
             "triggered": triggered, "metrics": metrics}
 
@@ -264,6 +281,13 @@ def run(argv=None):
         calls = [c for c in calls if c is not None]
         costs = [c for c in costs if c is not None]
         cost_note = f"  outils={sum(calls)/len(calls):.0f}" if calls else ""
+        # Prévisibilité : même piste à chaque trial, et écart d'appels serré.
+        if len(calls) > 1:
+            cost_note += f" (écart {min(calls)}–{max(calls)})"
+        tracks = [t["metrics"].get("track") for t in trial_results if t.get("metrics")]
+        if any(tracks):
+            mixed = len(set(tracks)) > 1
+            cost_note += f"  piste={'/'.join(str(t) for t in tracks)}{' ⚠️ instable' if mixed else ''}"
         if costs:
             cost_note += f"  ${sum(costs)/len(costs):.3f}"
         print(f"{status} {case['id']:32} {passed}/{args.trials}{cost_note}")

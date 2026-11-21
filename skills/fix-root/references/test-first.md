@@ -18,13 +18,17 @@ script.
 
 ## What it actually proves
 
-It replays both states with `git stash`: `<test-cmd>` with the fix removed
-must fail, with the fix restored must pass. Exit 0 only on a confirmed
-red→green. Zero dependencies beyond bash and git.
+It replays both states with `git stash`: every `<test-cmd>` with the fix
+removed must fail, with the fix restored must pass. Exit 0 only on a
+confirmed red→green for all of them. Zero dependencies beyond bash and git.
 
 It proves the test is not **vacuous** — that it would have caught this
-bug. It cannot check that the test covers the right edge cases; that is
-still yours, and comes from the step 6 edge-case list.
+bug. With one command per caller of the defect, it also proves the fix sits
+where all of them route through: a symptom fix leaves one red. It cannot
+check edge-case coverage; that comes from the step 7 list.
+
+`--repeat N` (N from `measure-repro.sh`): red needs one failure in N runs,
+green needs N passes out of N — a lucky green on an intermittent bug fails.
 
 ## Red for the wrong reason
 
@@ -49,7 +53,9 @@ error genuinely *is* the bug.
 **"no pending changes in `<file>`"** (exit 2) — the fix must be
 uncommitted when you run this. If the fix adds a brand-new file, git has
 nothing to stash for it: stage it with `git add <file>` first (`git add -N`
-does not work — `git stash` refuses intent-to-add entries).
+does not work — `git stash` refuses intent-to-add entries). A fix that
+deletes a file works as an unstaged deletion; a staged one (`git rm`) is
+refused with the `git restore --staged` command to run.
 
 **"test command succeeded even without the fix" when the test lives in the
 fix file** (Rust `#[cfg(test)]`, doctests, a script asserting on itself) —
@@ -84,12 +90,12 @@ Pass a test command that disables its cache.
 
 ## Suite gate — `verify-suite.sh`
 
-Step 10's gate. Same stash replay as above, applied to the whole suite:
+Step 11's gate. Same stash replay as above, applied to the whole suite:
 run without the fix, run with it, compare the failing tests by id.
 
 - **Exit 3 is a pass with a duty.** Every listed failure also fails
   without the fix: the fix did not cause it. Report each one as a separate
-  bug in the step 12 report — don't revert, don't fix it in this diff.
+  bug in the step 13 report — don't revert, don't fix it in this diff.
 - **"UNVERIFIED"** (exit 1) — the suite fails both ways and no failing
   test id could be read from its output, so "pre-existing" can't be
   proven. Name them with a pattern matching a whole output line, first

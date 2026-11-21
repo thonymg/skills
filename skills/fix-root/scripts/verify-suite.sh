@@ -48,7 +48,9 @@ fix_files=("$@")
 [ "${#fix_files[@]}" -ge 1 ] || die "no fix files given after --"
 
 for f in "${fix_files[@]}"; do
-  [ -e "$f" ] || die "fix file not found: $f"
+  [ -e "$f" ] || git cat-file -e "HEAD:./$f" 2>/dev/null || die "fix file not found: $f"
+  [ -e "$f" ] || git ls-files --error-unmatch -- "$f" >/dev/null 2>&1 \
+    || die "$f: staged deletion — git stash cannot target it; run 'git restore --staged $f' (the file stays deleted) and retry"
   git diff --quiet -- "$f" && git diff --cached --quiet -- "$f" \
     && die "no pending changes in $f — run this before committing the fix (a brand-new file must be staged with 'git add' first)"
 done
@@ -80,9 +82,14 @@ failing_ids() {
       -e 's/^[[:space:]]*(✕|×) (.+)$/\2/p' \
       -e 's/^[[:space:]]*FAIL[[:space:]]+(.+)$/\1/p' \
       -e 's/^rspec (\.\/[^ ]+).*$/\1/p' \
-      -e 's/^[[:space:]]*[0-9]+\) (.+)$/\1/p' \
       -e 's/^([A-Za-z_][A-Za-z0-9_:]*#test_[A-Za-z0-9_]+).*$/\1/p' \
       "$1.plain"
+    # "1) name" (mocha, rspec, phpunit) also matches any numbered log line,
+    # which would show up in both runs and fake a "pre-existing" verdict.
+    # Only read it when the output carries one of those runners' markers.
+    if grep -Eq '^[[:space:]]*[0-9]+ failing|^There (was|were) [0-9]+ failure|^Failures:' "$1.plain"; then
+      sed -nE 's/^[[:space:]]*[0-9]+\) (.+)$/\1/p' "$1.plain"
+    fi
   fi | sed -E 's/[[:space:]]*[[(][0-9.]+ ?(ms|s)[])]$//; s/[[:space:]]+[0-9.]+m?s$//; s/[[:space:]]+$//' | sort -u
 }
 
@@ -122,7 +129,7 @@ if [ "$rc_after" -eq 0 ]; then
 fi
 
 echo "== tail of the failing run:"
-tail -n 20 "$work/after.log" | sed 's/^/   | /'
+tail -n 15 "$work/after.log" | sed 's/^/   | /'
 
 if [ -s "$work/new.ids" ]; then
   echo "FAIL: the fix introduced NEW failures — revert and re-diagnose, don't patch forward:" >&2

@@ -100,7 +100,7 @@ make_history "$WORK/trap" 8 4
 printf 'import sys\nsys.exit(0 if "good" in open("v").read() else 1)\n' > t.py
 git add t.py && git commit -qm "add test"
 out=$(bash "$BISECT" --good good -- python3 -B t.py 2>&1); rc=$?
-if [[ $rc -eq 1 ]] && grep -q UNRELIABLE <<<"$out"; then report PASS "committed-test-trap-refuses" "exit=1 UNRELIABLE"
+if [[ $rc -eq 1 ]] && grep -q 'already fails at --good' <<<"$out" && ! grep -q 'bisecting' <<<"$out"; then report PASS "committed-test-trap-refuses" "exit=1 avant bisect (pré-check)"
 else report FAIL "committed-test-trap-refuses" "exit=$rc — un faux coupable a peut-être été annoncé"; fi
 out=$(bash "$BISECT" --good good --keep t.py -- python3 -B t.py 2>&1)
 if found "$(sha_of c4)" "$out" && [[ -f t.py ]]; then report PASS "committed-test-trap-keep" "coupable c4"
@@ -113,6 +113,14 @@ culprit=$(sed -n 's/^== first bad commit: //p' <<<"$out")
 subject=$([[ -n "$culprit" ]] && git log -1 --format=%s "$culprit")
 if [[ "$subject" == *"percentage points"* ]]; then report PASS "eval-fixture-billing-regression" "$subject"
 else report FAIL "eval-fixture-billing-regression" "obtenu: ${subject:-$(tail -1 <<<"$out")}"; fi
+
+# 9b. Fixture latent-regression : bisect désigne le commit légitime qui expose le bug.
+mkdir -p "$WORK/latent" && cd "$WORK/latent" && bash "$REPO/evals/fixtures/latent-regression/setup.sh" >/dev/null 2>&1
+out=$(bash "$BISECT" --good v1.0 -- python3 -B -c "from orders import average_basket; average_basket([{'total': 10, 'status': 'cancelled'}])" 2>&1)
+culprit=$(sed -n 's/^== first bad commit: //p' <<<"$out")
+subject=$([[ -n "$culprit" ]] && git log -1 --format=%s "$culprit")
+if [[ "$subject" == *"cancelled orders must not count"* ]]; then report PASS "eval-fixture-latent-regression" "$subject"
+else report FAIL "eval-fixture-latent-regression" "obtenu: ${subject:-$(tail -1 <<<"$out")}"; fi
 
 echo ""
 echo "── verify-test-first.sh ───────────────────────────────────"
@@ -236,6 +244,157 @@ EOF
 out=$(bash "$SUITE" "bash $WORK/go.sh" -- lib.py 2>&1); rc=$?
 if [[ $rc -eq 3 ]]; then report PASS "suite-durations-normalised" "exit=3"
 else report FAIL "suite-durations-normalised" "exit=$rc"; echo "$out" | tail -5 | sed 's/^/       /'; fi
+
+# 24. Sortie de suite avec une ligne numérotée « 1) … » dans les deux runs, et
+#     un nouvel échec que rien ne nomme : le motif « N) » ne doit pas fabriquer
+#     un id commun qui transformerait le verdict en 3.
+cat > "$WORK/numbered.sh" <<'EOS'
+echo "1) Connecting to database"
+grep -q "if x" lib.py && echo "boom: something else broke"
+exit 1
+EOS
+make_suite "$WORK/s-numbered"
+printf 'def total(xs):\n    return sum(x for x in xs if x)\n' > lib.py
+out=$(bash "$SUITE" "bash $WORK/numbered.sh" -- lib.py 2>&1); rc=$?
+if [[ $rc -eq 1 ]]; then report PASS "suite-numbered-log-not-an-id" "exit=1"
+else report FAIL "suite-numbered-log-not-an-id" "exit=$rc — faux « pré-existant »"; fi
+
+# 25. Fix = suppression d'un fichier suivi : accepté.
+make_lib "$WORK/v-delete"
+printf 'BROKEN\n' > flag.cfg && git add flag.cfg && git commit -qm flag
+rm flag.cfg
+bash "$VERIFY" '! test -e flag.cfg' -- flag.cfg >/dev/null 2>&1; rc=$?
+if [[ $rc -eq 0 && ! -e flag.cfg ]]; then report PASS "verify-deleted-file" "exit=0"; else report FAIL "verify-deleted-file" "exit=$rc"; fi
+
+# 25b. Faux rouge Go : la compilation du test échoue ([build failed]) → 1.
+make_lib "$WORK/v-gobuild"
+printf 'def total(xs):\n    return sum(x for x in xs if x)\n' > lib.py
+out=$(bash "$VERIFY" 'grep -q "if x" lib.py || { echo "FAIL	example.com/pkg [build failed]"; exit 1; }' -- lib.py 2>&1); rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'wrong reason' <<<"$out"; then report PASS "verify-rejects-go-build-failed" "exit=1"
+else report FAIL "verify-rejects-go-build-failed" "exit=$rc"; fi
+
+echo ""
+echo "── racine vs symptôme (verify multi-commandes) ────────────"
+# Défaut partagé : core.norm() renvoie None sur liste vide ; api_a et api_b
+# l'appellent. Fix au symptôme = garde dans api_a seulement.
+make_shared() {
+  mkdir -p "$1" && cd "$1" && git init -q -b main
+  printf 'def norm(xs):\n    return sum(xs) / len(xs) if xs else None\n' > core.py
+  printf 'from core import norm\ndef a(xs):\n    return round(norm(xs), 2)\n' > api_a.py
+  printf 'from core import norm\ndef b(xs):\n    return norm(xs) * 100\n' > api_b.py
+  git add . && git commit -qm init
+}
+TA='python3 -B -c "from api_a import a; assert a([]) == 0"'
+TB='python3 -B -c "from api_b import b; assert b([]) == 0"'
+
+# 26. Fix au symptôme : api_a vert, api_b reste rouge → 1.
+make_shared "$WORK/m-symptom"
+printf 'from core import norm\ndef a(xs):\n    return round(norm(xs) or 0, 2)\n' > api_a.py
+out=$(bash "$VERIFY" "$TA" "$TB" -- api_a.py 2>&1); rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'symptom' <<<"$out"; then report PASS "verify-multi-symptom-fix-refused" "exit=1"
+else report FAIL "verify-multi-symptom-fix-refused" "exit=$rc"; fi
+
+# 27. Fix à la racine : les deux appelants passent → 0.
+make_shared "$WORK/m-root"
+printf 'def norm(xs):\n    return sum(xs) / len(xs) if xs else 0\n' > core.py
+bash "$VERIFY" "$TA" "$TB" -- core.py >/dev/null 2>&1; rc=$?
+if [[ $rc -eq 0 ]]; then report PASS "verify-multi-root-fix" "exit=0"; else report FAIL "verify-multi-root-fix" "exit=$rc"; fi
+
+# 28. --repeat : un vert qui n'est vert qu'un appel sur deux → 1.
+make_lib "$WORK/v-flaky"
+printf 'def total(xs):\n    return sum(x for x in xs if x)\n' > lib.py
+cat > "$WORK/flaky-green.sh" <<'EOS'
+c=$(cat "$WORK_COUNTER" 2>/dev/null || echo 0); echo $((c + 1)) > "$WORK_COUNTER"
+grep -q "if x" lib.py && [ $((c % 2)) -eq 0 ]
+EOS
+export WORK_COUNTER="$WORK/counter-green"
+bash "$VERIFY" --repeat 4 "bash $WORK/flaky-green.sh" -- lib.py >/dev/null 2>&1; rc=$?
+if [[ $rc -eq 1 ]]; then report PASS "verify-repeat-flaky-green" "exit=1"; else report FAIL "verify-repeat-flaky-green" "exit=$rc"; fi
+
+echo ""
+echo "── bisect : bornes ────────────────────────────────────────"
+# 29. Le « bon » ref montre déjà le bug → refus avant tout bisect.
+make_history "$WORK/b-endpoints" 6 1
+out=$(bash "$BISECT" --good good -- bash -c 'grep -q good v' 2>&1); rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'already fails at --good' <<<"$out" && ! grep -q 'bisecting' <<<"$out"; then
+  report PASS "bisect-good-endpoint-refused" "exit=1 avant bisect"
+else report FAIL "bisect-good-endpoint-refused" "exit=$rc"; fi
+
+echo ""
+echo "── measure-repro.sh ───────────────────────────────────────"
+MEASURE="$SCRIPTS/measure-repro.sh"
+bash "$MEASURE" -n 5 -- false >/dev/null 2>&1; rc=$?
+[[ $rc -eq 0 ]] && report PASS "measure-deterministic" "exit=0" || report FAIL "measure-deterministic" "exit=$rc"
+bash "$MEASURE" -n 5 -- true >/dev/null 2>&1; rc=$?
+[[ $rc -eq 1 ]] && report PASS "measure-no-repro" "exit=1" || report FAIL "measure-no-repro" "exit=$rc"
+export WORK_COUNTER="$WORK/counter-measure"
+out=$(bash "$MEASURE" -n 10 -- 'c=$(cat "$WORK_COUNTER" 2>/dev/null || echo 0); echo $((c + 1)) > "$WORK_COUNTER"; [ $((c % 2)) -eq 0 ]' 2>&1); rc=$?
+# 5/10 reproduit → N = ceil(ln 0.01 / ln 0.5) = 7
+if [[ $rc -eq 3 ]] && grep -q 'reproduced 5/10' <<<"$out" && grep -q -- '--repeat 7' <<<"$out"; then
+  report PASS "measure-intermittent" "exit=3, --repeat 7"
+else report FAIL "measure-intermittent" "exit=$rc $(head -1 <<<"$out")"; fi
+
+echo ""
+echo "── check-ledger.sh ────────────────────────────────────────"
+LEDGER="$SCRIPTS/check-ledger.sh"
+ledger_case() {   # $1 = nom, $2 = exit attendu, $3 = options, stdin = registre
+  mkdir -p .fix-root && cat > .fix-root/ledger
+  # shellcheck disable=SC2086
+  out=$(bash "$LEDGER" $3 2>&1); rc=$?
+  if [[ $rc -eq $2 ]]; then report PASS "$1" "exit=$rc"; else report FAIL "$1" "exit=$rc attendu $2: $(head -1 <<<"$out")"; fi
+}
+make_shared "$WORK/l"
+echo .fix-root >> .git/info/exclude
+ledger_case "ledger-short-nominal" 0 "" <<'EOS'
+track | short
+repro | python3 -B -c "from api_b import b; assert b([]) == 0"
+H1 | confirmed | core.py:2 | norm returns None on empty input | line 2: `else None`
+EOS
+ledger_case "ledger-cite-missing-line" 1 "" <<'EOS'
+track | short
+repro | x
+H1 | confirmed | core.py:99 | norm returns None | -
+EOS
+ledger_case "ledger-full-needs-3" 1 "" <<'EOS'
+track | full
+repro | x
+H1 | killed | api_a.py:3 | round fails on None | -
+H2 | confirmed | core.py:2 | norm returns None | -
+EOS
+ledger_case "ledger-duplicate-hypothesis" 1 "" <<'EOS'
+track | full
+repro | x
+H1 | killed | api_a.py:3 | Norm returns None | -
+H2 | open | | caller passes empty list | -
+H3 | open | | norm   returns none | -
+EOS
+ledger_case "ledger-two-failed-fixes" 1 "" <<'EOS'
+track | short
+repro | x
+H1 | confirmed | core.py:2 | norm returns None | -
+fix | H1 | fail
+fix | H1 | fail
+EOS
+printf 'def norm(xs):\n    return sum(xs) / len(xs) if xs else 0\n' > core.py
+printf 'from core import norm\ndef a(xs):\n    return round(norm(xs) or 0, 2)\n' > api_a.py
+ledger_case "ledger-final-out-of-scope" 1 "--final" <<'EOS'
+track | short
+repro | x
+H1 | confirmed | core.py:2 | norm returns None | -
+EOS
+git checkout -q -- api_a.py
+printf 'import unittest\n' > test_core.py
+ledger_case "ledger-final-in-scope" 0 "--final" <<'EOS'
+track | short
+repro | x
+H1 | confirmed | core.py:2 | norm returns None | -
+fix | H1 | pass
+EOS
+ledger_case "ledger-final-max-lines" 1 "--final --max-lines 1" <<'EOS'
+track | short
+repro | x
+H1 | confirmed | core.py:2 | norm returns None | -
+EOS
 
 echo ""
 echo "═══════════════════════════════════════════════════════════"

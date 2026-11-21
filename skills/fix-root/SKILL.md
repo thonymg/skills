@@ -1,175 +1,152 @@
 ---
 name: fix-root
-description: End-to-end bug fix workflow, root cause first. Asks whether the
-  behavior ever worked — if so it is a regression and git bisect finds the
-  culprit commit instead of a hypothesis contest. Otherwise triages into a
-  short track or a full track (competing hypotheses as an anchoring-bias
-  gate, graph evidence, a caller baseline re-verified after). Every track
-  keeps a failing test before the fix, a minimal fix at the root cause
-  only, and a full suite run. Use when the user asks
-  to fix a bug, find or understand the root cause, corrige ce bug, debug
-  this error, resolve this stack trace or exception, do a root cause
-  analysis, investigate why a call fails or returns an unexpected status,
-  investiguer une erreur 403/4xx/5xx, analyse a bug ticket, comprendre
-  pourquoi ça échoue, or reports a regression — it worked before, ça
-  marchait avant, broken since the last deploy or release or migration,
-  find the commit that broke it, git bisect — or invokes "/fix-root". Not
-  for refactoring without a bug present.
+description: Bug fix workflow, root cause first. A red repro before any
+  diagnosis; a regression goes to git bisect, anything else to a short or
+  full track; a script-checked hypothesis ledger stops loops; a failing test
+  before the fix; a minimal fix proven at the root for every caller; a full
+  suite gate. Use to fix a bug, debug an error, stack trace or exception,
+  find a root cause, investigate a 4xx/5xx or unexpected status, analyse a
+  bug ticket, or a regression (it worked before, broken since a deploy,
+  release or migration, find the commit that broke it, git bisect) — also
+  corrige ce bug, ça marchait avant, pourquoi ça échoue, a crash report
+  with no explicit ask (X plante, crashes, throws), or /fix-root. Not
+  for refactoring without a bug.
 ---
 
-# fix-root — root cause first, fix second, verify third
+# fix-root — repro first, root cause second, proof third
 
-**Diagnose** (don't anchor on the first guess), **fix** (minimal, root
-cause only), **verify** (prove the change did what the plan said). Each
-part gates the next.
-
-## Load only what this bug needs
-
-This file is the whole short track. Read a reference only when its
-condition holds — loading all four on a one-file bug is the waste this
-skill exists to avoid.
+Scripts live in `<skill-dir>/scripts/` — resolve `<skill-dir>` from this
+file's path. Every gate exits 0 on pass, 1 on fail, 2 on usage error, 3
+when it has a third verdict to report; each prints what to do next. Read a reference only when its condition holds:
 
 | Read | When |
 |:-----|:-----|
-| `references/regression.md` | The behavior worked before — a tag, a release, a green CI run |
-| `references/full-track.md` | The full track was triggered by the triage below |
+| `languages/<lang>.md` | Once the language is known — no-cache test command, repeat, race detector, suite pattern |
+| `references/regression.md` | The behavior worked at a nameable ref (tag, release, green CI) |
+| `references/full-track.md` | The triage escalated to the full track |
 | `references/graph-tools.md` | `codebase-memory-mcp` is available and you are about to call it |
-| `references/test-first.md` | The red→green or suite gate misbehaves, or its script is missing |
+| `references/test-first.md` | `verify-test-first.sh` / `verify-suite.sh` misbehaves, or a script is missing |
 
 MCP names are bare, not callable as written. Prefix `cbm_` under pi,
 `mcp__codebase-memory-mcp__` under Claude Code. Under pi, `trace_path`,
 `query_graph`, `detect_changes`, `get_architecture` and `get_graph_schema`
-need one `cbm_search_tools` call first.
+need one `cbm_search_tools` call first. No graph available: grep and read,
+and say so in the report.
 
-## Triage — two questions before touching a tool
+## The ledger — memory that survives compaction
 
-**Is this a regression?** Did the behavior ever work — a release, a tag, a
-commit, "it worked before the deploy", a test that used to pass? If yes,
-history holds the answer: read `references/regression.md`, which replaces
-steps 2-3 and nothing else. If nobody can name a moment when it worked, it
-is not a regression — don't bisect a bug that was always there.
+`.fix-root/ledger`, kept out of git by step 2. Full and regression
+tracks: create it at step 3, one line per event as it happens, and run
+`scripts/check-ledger.sh` after each change. Short track: write it once,
+when H1 is confirmed at step 6 — only `--final` runs.
 
-**Short or full track?** Short is the default. The full sequence is an
-escalation, not the entry point: running it on a bug that didn't need it
-burns the budget on ritual instead of on reading the faulty code, and
-forces fabricated hypotheses — the very anchoring risk the gate exists to
-prevent.
+```
+track | short|full|regression
+repro | <command that exits non-zero while the bug is present>
+H1    | open|killed|confirmed | <path:line> | <statement> | <evidence>
+fix   | H1 | fail|pass
+allow | <path> | <reason>        # sibling occurrence the fix may also touch
+```
 
-**Short track** — cause visible in the trace/diff/failing test, blast
-radius ≤2 files, no concurrency, no service boundary crossed. Steps 1, 4,
-7, 8, 10, 12 below. Nothing else.
+Re-read it before forming any hypothesis: a killed one is never re-tested.
 
-**Full track** — escalate on any one of these, and only these:
+## Triage
 
-- not reproducible on demand, or intermittent/timing-dependent
-- crosses a service, process, or network boundary
-- the cause is still not cited after 2 tool calls
-- the fix would touch >2 files, a public signature, or shared mutable state
-- a previous fix for the same symptom already failed
+1. **Gather input.** Full trace (not the first line), expected vs actual.
+2. **Red repro, before reading code.** A command that exits non-zero while
+   the bug is present — a test, a `python -c`, a `curl`. Don't run it
+   bare: one call does both setup and measure —
+   `echo .fix-root >> "$(git rev-parse --git-path info/exclude)"; scripts/measure-repro.sh -n 20 -- <cmd>`:
+   exit 1 → no repro: ask, or derive one from the trace; never diagnose
+   without it. Exit 3 → intermittent: full track, use the printed
+   `--repeat` everywhere. Exit 0 → continue.
+3. **Pick the track.**
+   - **Regression** — someone names a ref where it worked: read
+     `references/regression.md` before bisecting; it replaces steps 4-5.
+     The culprit commit is where behavior changed — it may only expose a
+     latent defect. Never revert by reflex: step 6 still finds the root.
+   - **Short** (default) — cause visible in the trace or failing test, ≤2
+     files, no concurrency, no service boundary. Skips steps 7, 10, 12.
+   - **Full** — any one of: intermittent (measured), crosses a
+     service/process/network boundary, cause not cited after 2 tool calls,
+     fix would touch >2 files / a public signature / shared mutable state,
+     a previous fix for this symptom failed. All steps.
 
-State the track in one line before the first tool call. Escalating
-short → full mid-flight is expected, not a failure. The reverse never
-happens: finishing early because it now looks simple is how a fix ships
-unverified.
+   Short → full mid-flight is expected. Full → short never.
 
-## Workflow
+## Diagnose
 
-Steps marked *(full)* are skipped entirely on the short track.
+4. **Observe, don't reason.** Cheapest evidence first: read the blast site
+   (`search_graph` / `search_code` on the symbols and error text);
+   typecheck/linter on the suspect file; **differential** — the smallest
+   difference between a passing input and the failing one is the lead;
+   temporary logs of the real values at each hop (removed before the diff);
+   `git blame` on a guard before removing it — its commit may explain it.
+5. **Hypotheses.** Full track: ≥3 from different angles, each with the
+   cheapest experiment that would kill it: `references/full-track.md`.
+   Short track: exactly one — needing a second is the escalation signal.
+6. **Walk back to the root.** From the failure, follow the bad value one
+   hop upstream at a time. At each function: inputs violate its contract →
+   go up one hop — `trace_path(mode="data_flow")` gives the next hop, grep
+   the callers without the graph. Inputs valid, output wrong → **the defect
+   is here**. The crash site is where the symptom shows, rarely where the
+   contract breaks.
+   Every kill or confirmation goes in the ledger with its `path:line`.
 
-### Diagnose
+   **Budget** (full and regression): 5 tool calls without a new ledger
+   line → stop, show the ledger, ask. Circling is the failure mode this
+   rule exists for. The short track is already capped: no citation after
+   2 tool calls escalates it.
 
-1. **Gather input.** Full error/stack trace (not just the first line),
-   repro steps, expected vs actual. No repro steps → ask, or derive them
-   from the trace; never guess a cause from a one-line summary. State the
-   track here.
-2. **Locate the blast site.** *(full)* Search for the symbols and error
-   text named in the trace; reconnaissance only, no conclusion yet. Short
-   track: the trace already names the site — read that file and go to 4.
-   Regression: `references/regression.md` replaces this step.
-3. **Generate ≥3 hypotheses before reading further code.** *(full, and
-   skipped on the regression track — history already narrowed it)* Each
-   from a different angle. Detail and the rejection discipline:
-   `references/full-track.md`.
-4. **Gather evidence.** Cite `file:line` or a qualified name for every
-   claim — nothing is accepted or rejected without a cited source. Short
-   track: one hypothesis and one citation, not zero. An uncited cause is a
-   guess.
-5. **Pick the root cause.** *(full)* State what evidence killed each
-   rejected hypothesis.
+## Fix
 
-### Fix
-
-6. **Map the pre-fix baseline.** *(full)* Every caller and callee of the
-   code about to change, plus the same faulty pattern elsewhere in the
-   repo. This baseline is what step 9 verifies against, and it decides the
-   edge cases the fix must cover. See `references/full-track.md`.
-7. **Write the failing test first.** Reproduce the bug as a test, show it
-   red, before touching the fix. Not unit-testable (a WAF, a proxy, a
-   config the code doesn't own)? A reproducible command that exits
-   non-zero while the bug is present — a `curl`, a script — is the red
-   check. A fix that lands outside the repo is reported **unverified**,
-   never as done.
-8. **Apply the minimal fix, root cause only.** No renames, no reshaping,
-   no drive-by cleanup — note the temptation as a follow-up, not part of
-   this diff. Then prove red→green mechanically rather than by self-report:
+7. **Baseline.** *(full)* Every caller and callee of the code about to
+   change (`trace_path(direction="both")` + `check_index_coverage`), the
+   same faulty pattern elsewhere, the edge cases to cover:
+   `references/full-track.md`. Siblings to fix go in as `allow` lines.
+8. **Turn the repro into a test** and see it red. Not unit-testable (WAF,
+   proxy, config outside the repo)? The repro command is the test; a fix
+   landing outside the repo is reported **unverified**.
+9. **Minimal fix at the root, then prove it:**
 
    ```bash
-   <skill-dir>/scripts/verify-test-first.sh "<test-cmd>" -- <fix-file> [...]
+   scripts/verify-test-first.sh [--expect-red '<regex>'] [--repeat N] \
+     "<test via caller A>" "<test via caller B>" -- <fix-file>...
    ```
 
-   `<skill-dir>` is wherever this SKILL.md sits — resolve it from this
-   file's own path, don't assume a repo layout. Exit 0 only on a confirmed
-   red→green. Read the red output it prints: red must come from the bug,
-   not from an import error — `--expect-red '<regex>'` makes that
-   mechanical. Script missing, test inside the fix file, or a build cache
-   making the replay lie: `references/test-first.md`.
+   One test command per entry point that routes through the defect (the
+   step 7 callers; short track: grep the defect's callers): a
+   symptom fix turns one green and leaves another red, and the gate says
+   so. Log `fix | Hn | pass|fail`. A fail **refutes the diagnosis** — one
+   retouch at most; a second fail is refused by `check-ledger.sh`: mark the
+   hypothesis killed and go back to step 4. No renames, no cleanup — note
+   them as follow-ups.
 
-### Verify
+## Verify
 
-9. **Verify consequences against the plan.** *(full)* Real blast radius of
-   the diff, post-fix callers compared to the step 6 baseline, sibling
-   occurrences of the same bug, call-site compatibility if a signature
-   changed. Checklist: `references/full-track.md`.
-10. **Run the full suite through the gate**, not just the new test, plus
-    one test per edge case from step 6. In a monorepo, "full" means every
-    package that depends on the changed code, not the whole repo. The gate
-    runs the suite without then with the fix and compares failing tests —
-    "that failure was already there" is measured, never asserted:
-
-    ```bash
-    <skill-dir>/scripts/verify-suite.sh "<suite-cmd>" -- <fix-file> [...]
-    ```
-
-    | Exit | Meaning | Do |
-    |:-----|:--------|:---|
-    | 0 | suite green with the fix | continue |
-    | 3 | only pre-existing failures (they fail without the fix too) | report each as a separate bug; don't revert |
-    | 1 | a NEW failure, or failures it cannot identify (UNVERIFIED) | revert and re-diagnose, never patch forward — or pass `--fail-pattern` so it can name them |
-
-    Output format unknown to it: `references/test-first.md`.
-11. **Self-critique, separate pass.** *(full)* Three ways this change could
-    break something silently, each checked against the code rather than
-    from memory. See `references/full-track.md`.
-12. **Report.** Track chosen and why, root cause with its citation, the
-    diff, tests added, and the exit codes of `verify-test-first.sh` and
-    `verify-suite.sh` with the pre-existing failures they listed. Full track also: hypotheses rejected
-    with their evidence, and the step 9 results.
+10. **Consequences.** *(full)* Blast radius (`detect_changes`), callers vs
+    the step 7 baseline (`trace_path` again), siblings, call-site
+    compatibility: `references/full-track.md`.
+11. **Suite gate** (full track: plus one test per step 7 edge case):
+    `scripts/verify-suite.sh "<suite-cmd>" -- <fix-file>...` — 0 continue,
+    3 = only pre-existing failures (report each separately, don't revert),
+    1 = new or unidentifiable failure (revert and re-diagnose, never patch
+    forward). Monorepo: every package depending on the change. Chain the
+    close in the same call: `verify-suite.sh … ; check-ledger.sh --final`.
+12. **Self-critique.** *(full)* Three silent-breakage paths, each checked
+    in the code: `references/full-track.md`.
+13. **Close.** `scripts/check-ledger.sh --final` (diff only touches the
+    confirmed file, `allow` paths and tests; ≤40 non-test lines). Report:
+    track, the ledger's hypotheses with evidence, root cause `path:line`,
+    diff, tests added, exit codes of the three gates, pre-existing failures.
+    Regression: the culprit commit, and whether it introduced the defect or
+    exposed a latent one.
 
 ## Hard rules
 
-- The track is stated in one line before the first tool call. Escalating
-  short → full is always allowed; full → short never.
-- "It worked before" is checked before anything else. A regression
-  diagnosed by hypothesis when a good ref existed is wasted budget.
-- No cause is accepted without a cited `file:line` — either track. "Probably
-  not that" is not a rejection.
-- Full track: never fewer than 3 hypotheses. Short track: exactly one — if
-  a second is needed to explain the evidence, that is the escalation
-  signal, take it.
-- Never skip the failing-test-first step. Both tracks, no exception — a
-  repro command counts as the test when the bug is not unit-testable.
-- Never mix a refactor into this diff. Note it, don't do it here.
-- Never report "done" unless `verify-suite.sh` exited 0 or 3 — a fix that
-  only passed its own new test is unverified, and a suite run you only
-  describe is a self-report. On the full track, step 9 is equally
-  non-optional.
+- No diagnosis without a red repro; no fix without a red test.
+- No cause accepted or rejected without a cited `path:line` in the ledger.
+- The root is where the contract breaks, not where it crashes.
+- A failed red→green refutes the hypothesis; it is never "tweak and retry".
+- "Done" only when `verify-test-first.sh` exited 0, `verify-suite.sh` 0 or
+  3, and `check-ledger.sh --final` 0. Anything less is reported unverified.

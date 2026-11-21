@@ -1,13 +1,13 @@
 # Regression track — the history is the evidence
 
 Read this only when the behavior demonstrably worked at some point. It
-replaces steps 2-3 of the workflow and nothing else: the culprit commit
-still has to survive step 4's evidence rule, and the fix still goes
-through steps 7-12.
+replaces steps 4-5 of the workflow and nothing else: the culprit commit
+still goes through step 6 (walk back to the root) and the ledger, and the
+fix through steps 8-13.
 
 **Short or full after the bisect?** Apply the triage's escalation criteria
 to the culprit's diff and to the fix: >2 files, a public signature, shared
-mutable state, or a service boundary → full-track steps 6, 9 and 11 apply
+mutable state, or a service boundary → full-track steps 7, 10 and 12 apply
 too. Otherwise the regression stays on the short track.
 
 **Entry condition: a named good ref.** A tag, a release SHA, last
@@ -34,9 +34,9 @@ isn't.
 
 ## Bisect, when the range is wide
 
-The predicate is not a new artifact: it is the failing test from step 7,
+The predicate is not a new artifact: it is the red repro from step 2,
 exiting 0 when the behavior is **correct** and non-zero when the bug is
-present. Write that test first, then:
+present. Measure it first (`measure-repro.sh`), then:
 
 ```bash
 <skill-dir>/scripts/bisect-run.sh --good <ref> [--bad <ref>] \
@@ -51,6 +51,11 @@ relative paths work from a subfolder.
 It wraps `git bisect run` with the guards that decide whether you get a
 culprit or a confident wrong answer:
 
+- **Endpoints checked first.** The predicate must pass at `--good` and fail
+  at `--bad` before a single bisect step runs. "It worked at v1.2" that
+  turns out false, or a repro file missing at the good ref, stops there —
+  not after ~log₂n builds.
+
 - **Dirty tree refused.** Bisect checks out other commits; uncommitted work
   is either carried across them — silently changing what you measure — or
   lost. Commit or stash first; the script will not do it for you.
@@ -59,14 +64,13 @@ culprit or a confident wrong answer:
   reads the non-zero exit as "bug present", and bisect converges on a
   commit far older than the real one. Raw `git bisect run` reports that
   wrong commit with exactly the confidence of a correct one; here the
-  monotonicity re-check below turns it into a refusal to conclude instead.
-  A refusal is still a wasted bisect — pass `--keep`, or avoid the
+  endpoint check refuses before bisecting. Pass `--keep`, or avoid the
   situation entirely with a repro that lives outside the tree
   (`python3 -c '...'`, a script in `/tmp`), which needs no `--keep` at all.
   A kept file the start commit doesn't track (the test you just wrote) is
   put back in the tree when the script ends.
 - **`--repeat N`** runs the predicate N times per commit and calls the
-  commit good only if all N pass.
+  commit good only if all N pass. Take N from `measure-repro.sh`.
 - **`git bisect reset` always**, including on interrupt, so the repo is
   never left on a detached HEAD.
 - **Monotonicity re-check.** After converging, the script re-runs the
@@ -89,9 +93,8 @@ Each of these produces confident nonsense, not an error:
   verdict is unreliable and bisect converges on noise. Measured on a
   predicate that reports a false "good" half the time: at `--repeat 1` it
   returned a wrong commit or refused to conclude; at `--repeat 10` it found
-  the right one. Raise `--repeat` until a good verdict means something —
-  roughly, until `(1 - reproduction rate) ^ N` is negligible — or treat the
-  bug as full-track instead of bisecting it.
+  the right one. `measure-repro.sh` computes the `--repeat` that makes a
+  good verdict mean something — or treat the bug as full-track instead.
 - **Stale build artifacts.** Compiled output, `node_modules`,
   `__pycache__`, a warm cache surviving the checkout — you then test the
   previous commit's build. Rebuild inside the predicate or disable the
@@ -106,12 +109,21 @@ Each of these produces confident nonsense, not an error:
   commit is not a diagnosis. Bisect inside it if the branch history
   survived; otherwise read its diff narrowed to the failing subsystem.
 
+## No culprit commit: the environment changed, not the code
+
+The repro passes at the good ref on a clean checkout, but fails now on the
+same commit — or the endpoint check fails at a ref everyone swears worked.
+Then history is not where the change is. Compare, in this order: lockfile
+or floating versions (`^1.2` resolved differently, a lockfile not
+committed), the runtime version, config and env vars, the data the code
+reads. Bisect can't see any of these.
+
 ## The culprit commit is not the root cause
 
 It is where the behavior **changed**. It may have introduced the bug, or
 merely exposed one that was already latent — a caller that started passing
 an empty list, a timeout that got shorter, a dependency that began
-returning `null`. Feed its diff into step 4 as *evidence*, not as a
+returning `null`. Feed its diff into step 6 as *evidence*, not as a
 verdict, and fix the underlying defect. Reverting on reflex restores the
 old behavior while leaving the latent defect in place, and the next caller
 to hit it files the same bug again.

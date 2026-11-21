@@ -52,6 +52,31 @@
       "_why": "Le repro est un fichier TRACKÉ commité après la régression : il n'existe pas aux vieux commits. Sans --keep, bisect lit l'erreur d'import comme « bug présent » et accuse un commit de bruit bien trop ancien, avec la même assurance qu'une bonne réponse. Le check sur « percentage points » exige de nommer le VRAI coupable, pas seulement de réparer billing.py — réparer sans identifier reste possible en lisant le code, et ne prouverait rien."
     },
     {
+      "id": "fixture-deep-chain-root",
+      "prompt": "`python3 -B report.py sales.csv` plante avec ZeroDivisionError dans stats.py. Le fichier vient de l'export Excel du client. La suite se lance avec `python3 -B -m unittest -q`.",
+      "fixture": "deep-chain",
+      "should_trigger": true,
+      "max_turns": 30,
+      "max_tool_calls": 22,
+      "max_changed_lines": 20,
+      "diff_checks": ["a/parser\\.py"],
+      "forbidden_diff_patterns": ["a/stats\\.py", "a/report\\.py", "a/export\\.py"],
+      "_why": "Racine à 3 sauts : le crash est dans stats.mean_amount, la liste vide vient de report.summary qui la reçoit de parser.parse_csv, qui jette toutes les lignes CRLF (`'10\\r'.isdigit()` faux). Garder stats contre la liste vide = fix au symptôme : le rapport afficherait « 0 sales » sur un fichier plein. parse_csv est partagé par report et export : le fix doit être là."
+    },
+    {
+      "id": "fixture-latent-regression",
+      "prompt": "Depuis peu, le panier moyen plante (ZeroDivisionError) les jours où toutes les commandes ont été annulées. Ça marchait en v1.0. Repro : python3 -B -c \"from orders import average_basket; average_basket([{'total': 10, 'status': 'cancelled'}])\"",
+      "fixture": "latent-regression",
+      "should_trigger": true,
+      "max_turns": 30,
+      "max_tool_calls": 22,
+      "max_changed_lines": 16,
+      "diff_checks": ["a/(stats|orders)\\.py"],
+      "forbidden_diff_patterns": ["(?sm)\\A(?!.*^\\+[^\\n]*!= \"cancelled\")(?=.*^-[^\\n]*!= \"cancelled\")"],
+      "expected_checks": ["(?i)(latent|expos|révél|revel)"],
+      "_why": "Le coupable du bisect est un commit LÉGITIME (exclure les commandes annulées) qui expose un défaut latent : average() n'a jamais géré la liste vide. Revert = mauvais fix (les annulées recompteraient) et un revert commité laisse le diff vide, donc diff_checks échoue. Le rapport doit dire que le commit a révélé le bug, pas qu'il l'a créé."
+    },
+    {
       "id": "short-track-obvious-typo",
       "prompt": "This code has a bug: `if (user = null) { return; }` instead of `==`, causing every request to bail out early. Fix it.",
       "should_trigger": true,

@@ -12,8 +12,8 @@ below.
 **Index freshness.** Check `index_status` first — under pi, which has no
 `index_status` equivalent, use `list_projects` + `check_index_coverage`.
 Not indexed or stale → `index_repository` before anything else: a stale
-index gives wrong "this is the only caller" answers in both the step 6
-baseline and the step 9 verification, and both of those are exhaustive
+index gives wrong "this is the only caller" answers in both the step 7
+baseline and the step 10 verification, and both of those are exhaustive
 claims.
 
 **Perimeter.** A project indexed on a *subfolder* of the repo answers
@@ -26,28 +26,28 @@ it only when a chain genuinely runs deeper.
 
 ## Calls per phase
 
-Steps 3, 6, 9 and 11 are full-track only — on the short track, skip those
+Steps 5, 7, 10 and 12 are full-track only — on the short track, skip those
 rows entirely.
 
 | Step | Need | Call |
 |:-----|:-----|:-----|
 | 0 | Repo indexed and current | `index_status` (pi: `list_projects` + `check_index_coverage`), then `index_repository` if stale |
-| 2 | Locate symbols named in the error/stack trace | `search_graph(name_pattern="...")`, `search_code(pattern)` for the literal error string or log line |
-| 2 | Unfamiliar subsystem | `get_architecture(aspects)` |
-| 4 | Where a suspect function's data comes from, or who calls it | `trace_path(function_name, mode="data_flow"\|"calls", depth=2)` |
-| 4 | Exact source of a symbol, without re-reading the whole file | `get_code_snippet(qualified_name)` |
-| 4 | A pattern too specific for the built-in queries | `get_graph_schema()` then `query_graph(cypher)` |
-| 4 | Bug might cross service boundaries | `trace_path(function_name, mode="cross_service")` |
-| 4 | Rule out "this is intentional" — *only if the faulty code looks deliberate* (a guard, a special case, a comment defending it) | `manage_adr` |
-| 6 | Every caller/consumer of the code the fix would touch (baseline) | `trace_path(function_name, direction="both", depth=2)`, then `check_index_coverage` on the files it touched |
-| 6 | Same bug pattern duplicated elsewhere | `search_code(pattern)` on the faulty code pattern; `search_graph(name_pattern="...")` only matches symbol names |
-| 9 | Actual blast radius of the diff just made | `detect_changes()` |
-| 9 | Post-fix callers vs the step 6 baseline | `trace_path(function_name, direction="both", depth=2)` again — anything new is scope creep |
-| 9 | No sibling occurrence left behind | `search_code(pattern)` re-run on the faulty pattern (`search_graph` for a symbol name) |
-| 9 | Signature changed → every call site still compatible | `query_graph(cypher)` over callers' argument shapes |
-| 11 | Record the finding — *only if it contradicts a documented decision, or the bug already came back once* | `manage_adr` |
+| 4 | Locate symbols named in the error/stack trace | `search_graph(name_pattern="...")`, `search_code(pattern)` for the literal error string or log line |
+| 4 | Unfamiliar subsystem | `get_architecture(aspects)` |
+| 6 | Where a suspect function's data comes from, or who calls it | `trace_path(function_name, mode="data_flow"\|"calls", depth=2)` |
+| 6 | Exact source of a symbol, without re-reading the whole file | `get_code_snippet(qualified_name)` |
+| 6 | A pattern too specific for the built-in queries | `get_graph_schema()` then `query_graph(cypher)` |
+| 6 | Bug might cross service boundaries | `trace_path(function_name, mode="cross_service")` |
+| 6 | Rule out "this is intentional" — *only if the faulty code looks deliberate* (a guard, a special case, a comment defending it) | `manage_adr` |
+| 7 | Every caller/consumer of the code the fix would touch (baseline) | `trace_path(function_name, direction="both", depth=2)`, then `check_index_coverage` on the files it touched |
+| 7 | Same bug pattern duplicated elsewhere | `search_code(pattern)` on the faulty code pattern; `search_graph(name_pattern="...")` only matches symbol names |
+| 10 | Actual blast radius of the diff just made | `detect_changes()` |
+| 10 | Post-fix callers vs the step 7 baseline | `trace_path(function_name, direction="both", depth=2)` again — anything new is scope creep |
+| 10 | No sibling occurrence left behind | `search_code(pattern)` re-run on the faulty pattern (`search_graph` for a symbol name) |
+| 10 | Signature changed → every call site still compatible | `query_graph(cypher)` over callers' argument shapes |
+| 12 | Record the finding — *only if it contradicts a documented decision, or the bug already came back once* | `manage_adr` |
 
-Steps 6 and 9 both call `trace_path` on purpose: the second call is what
+Steps 7 and 10 both call `trace_path` on purpose: the second call is what
 catches scope creep the first one could not have predicted. Two calls, not
 three — a separate re-check just before editing only repeats the baseline.
 

@@ -38,8 +38,14 @@
 #      only if all N pass. An intermittent bug makes a single "good" verdict
 #      meaningless, and bisect then converges on noise — with exactly the
 #      same confident output as a correct run.
-#   5. Monotonicity re-check: after converging, the culprit must be bad and
+#   5. Endpoint pre-check: before spending ~log2(n) builds, the predicate must
+#      pass on --good and fail on --bad. A wrong "it worked at vX" claim, or a
+#      repro file that doesn't exist at --good (pass --keep), stops here.
+#   6. Monotonicity re-check: after converging, the culprit must be bad and
 #      its parent good, or the result is reported as unreliable.
+#
+# Output is kept short on purpose: the step-by-step bisect log goes to a file,
+# only the culprit (or the log tail on failure) is printed.
 #
 # Exit codes: 0 = culprit identified, 1 = bisect could not conclude,
 # 2 = usage/environment error.
@@ -74,6 +80,9 @@ if [ "$#" -eq 1 ]; then repro_cmd="$1"; else repro_cmd="$(printf '%q ' "$@")"; f
 
 git rev-parse --verify --quiet "$good^{commit}" >/dev/null || die "not a commit: $good"
 git rev-parse --verify --quiet "$bad^{commit}" >/dev/null || die "not a commit: $bad"
+# Pinned to SHAs: the endpoint pre-check checks commits out, after which a
+# symbolic --bad HEAD would point at --good.
+good_sha="$(git rev-parse "$good^{commit}")"; bad_sha="$(git rev-parse "$bad^{commit}")"
 
 # Guard 1 — never bisect over uncommitted work.
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
@@ -142,27 +151,44 @@ done
 } > "$predicate"
 chmod +x "$predicate"
 
-echo "== bisecting  bad=$bad  good=$good"
+at_commit() { git checkout -q "$1" 2>/dev/null || return 125; "$predicate" >/dev/null 2>&1; }
+
 echo "== predicate: $repro_cmd"
-git bisect start "$bad" "$good" --  >/dev/null || die "git bisect start failed"
+# Guard 5 — both endpoints must agree with the claim before bisecting.
+at_commit "$good_sha"; good_rc=$?
+at_commit "$bad_sha"; bad_rc=$?
+git checkout -q "$start_ref" 2>/dev/null
+if [ "$good_rc" -ne 0 ]; then
+  echo "FAIL: the predicate already fails at --good $good (exit $good_rc) — this range is not a regression." >&2
+  echo "      Wrong good ref, a repro file missing at $good (pass --keep <file>), or a build that can't run there (exit 125)." >&2
+  exit 1
+fi
+if [ "$bad_rc" -eq 0 ]; then
+  echo "FAIL: the predicate passes at --bad $bad — it does not reproduce the bug there." >&2
+  exit 1
+fi
+echo "== endpoints confirmed: good passes, bad fails"
+
+echo "== bisecting  bad=$bad  good=$good  ($(git rev-list --count "$good_sha..$bad_sha") commits)"
+git bisect start "$bad_sha" "$good_sha" --  >/dev/null || die "git bisect start failed"
 
 log="$workdir/bisect.log"
-git bisect run "$predicate" 2>&1 | tee "$log"
+git bisect run "$predicate" >"$log" 2>&1
 
 culprit="$(grep -oE '^[0-9a-f]{7,40} is the first bad commit' "$log" | head -1 | cut -d' ' -f1)"
 if [ -z "$culprit" ]; then
+  tail -n 20 "$log" | sed 's/^/   | /'
   echo "bisect-run: bisect did not converge — check the predicate's exit codes (0=good, non-zero=bad, 125=skip)" >&2
   exit 1
 fi
+echo "== converged in $(grep -c '^running' "$log") step(s)"
 
-# Guard 5 — bisect assumes ONE good→bad transition. A bug introduced, then
+# Guard 6 — bisect assumes ONE good→bad transition. A bug introduced, then
 # partly fixed, then reintroduced still yields a single commit, reported as
 # confidently as a correct one. Re-testing both sides catches the common
 # shape of that.
 git bisect reset >/dev/null 2>&1
-echo
 echo "== monotonicity re-check"
-at_commit() { git checkout -q "$1" 2>/dev/null || return 125; "$predicate" >/dev/null 2>&1; }
 
 at_commit "$culprit"; culprit_rc=$?
 parent="$(git rev-parse --quiet --verify "${culprit}^" 2>/dev/null || true)"
@@ -179,7 +205,6 @@ else
 fi
 
 if [ "$unreliable" -eq 1 ]; then
-  echo
   echo "UNRELIABLE: the history is not monotonic over this range, so a single" >&2
   echo "first-bad-commit is not a meaningful answer. Read the range instead:" >&2
   echo "  git log -p $good..$bad -- <failing-subsystem>" >&2
@@ -187,11 +212,8 @@ if [ "$unreliable" -eq 1 ]; then
 fi
 echo "   parent good, culprit bad — single transition confirmed"
 
-echo
 echo "== first bad commit: $culprit"
-git --no-pager show --stat --oneline "$culprit" | head -40
-echo
-echo "This commit is where the behavior changed — not automatically the root"
-echo "cause. It may have exposed a latent bug rather than introduced one."
-echo "Read its diff before concluding: git show $culprit"
+git --no-pager show --stat --oneline "$culprit" | head -15
+echo "Where the behavior CHANGED, not automatically the root cause — it may have"
+echo "exposed a latent bug. Read the diff before concluding: git show $culprit"
 exit 0
