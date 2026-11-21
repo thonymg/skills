@@ -14,6 +14,19 @@ jobs:
       - name: Run linter regression tests
         run: bash tests/run-linter-tests.sh
 
+  svelte-strict-tests:
+    name: Tests svelte-strict (RuleTester + svs end to end)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned tooling
+        run: npm ci --prefix skills/svelte-strict/tooling --no-audit --no-fund
+      - name: Run svelte-strict tests
+        run: bash tests/run-svelte-strict-tests.sh
+
   shellcheck:
     name: Shellcheck
     runs-on: ubuntu-latest
@@ -25,4 +38,5 @@ jobs:
             skills/naming-convention/linter/lint.sh \
             skills/naming-convention/linter/lib/*.sh \
             skills/naming-convention/linter/checks/*.sh \
-            tests/run-linter-tests.sh
+            tests/run-linter-tests.sh \
+            tests/run-svelte-strict-tests.sh

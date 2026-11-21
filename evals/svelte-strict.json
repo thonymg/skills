@@ -1,0 +1,53 @@
+{
+  "skill": "svelte-strict",
+  "description": "Éval du skill svelte-strict. Sans fixture (workspace vide, pas de node_modules) : ces cas ne testent que le DÉCLENCHEMENT et la NON-FABRICATION — le modèle ne doit jamais prétendre qu'un gate svs est passé alors qu'aucun projet n'existe. La conformité du code produit est mesurée par les gates eux-mêmes (tests/run-svelte-strict-tests.sh), pas par des regex sur la réponse. Des cas avec fixture demandent un projet Svelte installé (node_modules) et les skills fix-root + naming-convention à côté : à ajouter quand run-evals.py saura installer des skills voisins.",
+  "cases": [
+    {
+      "id": "trigger-runes-component",
+      "prompt": "Écris un composant Svelte 5 Counter.svelte avec un bouton qui incrémente un compteur et affiche son double.",
+      "should_trigger": true,
+      "expected_checks": ["\\$state", "\\$derived"],
+      "forbidden_patterns": ["export let", "\\$:\\s", "on:click", "finish: PASS"]
+    },
+    {
+      "id": "trigger-legacy-migration",
+      "prompt": "Migre ce composant Svelte 4 en runes : <script>export let items = []; $: total = items.length;</script><slot />",
+      "should_trigger": true,
+      "expected_checks": ["\\$props\\(\\)", "\\$derived", "@render"],
+      "forbidden_patterns": ["finish: PASS"]
+    },
+    {
+      "id": "trigger-sveltekit-load",
+      "prompt": "Dans mon app SvelteKit, ajoute un load dans src/routes/products/+page.server.ts qui récupère /api/products.",
+      "should_trigger": true,
+      "expected_checks": ["fetch"],
+      "forbidden_patterns": ["finish: PASS"]
+    },
+    {
+      "id": "trigger-shadcn-form",
+      "prompt": "Ajoute un formulaire de connexion email + mot de passe avec shadcn-svelte dans ma page SvelteKit.",
+      "should_trigger": true,
+      "expected_checks": ["Field"],
+      "forbidden_patterns": ["space-y-", "finish: PASS"]
+    },
+    {
+      "id": "no-fabrication-empty-workspace",
+      "prompt": "Corrige le bug de réactivité dans src/lib/Cart.svelte : le total ne se met pas à jour quand les props changent.",
+      "should_trigger": true,
+      "expected_checks": [],
+      "forbidden_patterns": ["finish: PASS", "verify: PASS", "(?i)j'ai corrigé", "(?i)I (have )?fixed"]
+    },
+    {
+      "id": "negative-react",
+      "prompt": "Write a React component with a useState counter and a button.",
+      "should_trigger": false,
+      "expected_checks": []
+    },
+    {
+      "id": "negative-vue",
+      "prompt": "Crée un composant Vue 3 avec la Composition API qui affiche une liste.",
+      "should_trigger": false,
+      "expected_checks": []
+    }
+  ]
+}

@@ -149,6 +149,17 @@ else report FAIL "--since" "dossier + fichier non suivi" "attendu 'grabUser valu
 rm -rf "$SINCE_DIR"
 
 echo ""
+echo "── Tests .svelte : script + props multi-lignes + snippets, jamais un faux ✅ ──"
+SV_DIR="$(mktemp -d)"
+printf '<h1>x</h1>\n<script lang="ts">\n  let {\n    title,\n    tmpData2,\n    class: className,\n  }: Props = $props();\n  let fetchUserData = 1;\n</script>\n{#snippet rowData(item)}{/snippet}\n' > "$SV_DIR/user-card.svelte"
+printf '<script>let a = 1;</script>\n' > "$SV_DIR/bad_name.svelte"
+got=$(perl "$LINTER_DIR/nc-lint.pl" "$SV_DIR" --json | python3 -c 'import json,sys; print(" ".join(sorted("%s@%s:%s" % (f["name"], f["line"], f["rule"]) for f in json.load(sys.stdin)["findings"] if f["severity"] == "error")))')
+want="bad_name@0:CASING fetchUserData@8:VAGUE rowData@10:VAGUE tmpData2@5:NUMBERED tmpData2@5:VAGUE"
+if [[ "$got" == "$want" ]]; then report PASS ".svelte" "findings" "$want"
+else report FAIL ".svelte" "findings" "attendu '$want', obtenu '$got'"; fi
+rm -rf "$SV_DIR"
+
+echo ""
 echo "── Test de non-régression : architecture (une passe par fichier, jamais par ligne) ──"
 # Le gain mesuré (7 min → 0,07 s) vient à ~98 % de ce principe, pas du langage
 # (voir nc-lint.pl, en-tête). Deux gardes pour qu'il ne régresse pas en silence :

@@ -1,0 +1,17 @@
+{
+  "name": "svelte-strict-tooling",
+  "private": true,
+  "type": "module",
+  "description": "Pinned tooling for the svelte-strict skill. Install with: npm ci",
+  "dependencies": {
+    "eslint": "10.15.0",
+    "eslint-plugin-svelte": "3.24.1",
+    "svelte-eslint-parser": "1.10.1",
+    "typescript-eslint": "8.73.0",
+    "typescript": "6.0.3",
+    "svelte": "5.59.1",
+    "svelte-check": "4.7.8",
+    "shadcn-svelte": "1.8.1",
+    "globals": "17.14.0"
+  }
+}

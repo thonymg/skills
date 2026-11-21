@@ -32,6 +32,7 @@ Or install globally with `-g`. Learn more at [vercel-labs/skills](https://github
 | [fix-root](skills/fix-root) | Root-cause-first bug fix — ≥3 hypotheses before picking one, evidence and impact map via the codebase graph, failing test first, minimal fix, then re-verifies impact/consequences with the same graph before the full suite | fix this bug, corrige ce bug, root cause, RCA, cause profonde, debug this error, resolve this exception |
 | [plan-feat](skills/plan-feat) | Module-level implementation plans for a **new** feature or application — directive markdown plans (Gherkin, glossed math invariants), doc-coherence preflight, progress tracker, critique rounds; never writes code | implementation plan, plan d'implémentation, plan de feature, découpage en modules, planifier une application, /plan-feat |
 | [plan-update](skills/plan-update) | Update plans for an **existing** feature — current-state reconnaissance, impact analysis with ripple set, delta plans, data migration & deprecation, blocking coherence gates; revises plan files in place, never writes code | modifier une feature, faire évoluer, plan de modification, plan d'évolution, update/evolve a feature, /plan-update |
+| [svelte-strict](skills/svelte-strict) | Deterministic Svelte 5 (runes) + SvelteKit + shadcn-svelte workflow — one CLI (`svs`) scopes the task, lints with the project's compiler + eslint-plugin-svelte + 44 tested rules, blocks only NEW findings vs a git baseline, forbids silent suppressions/config loosening, generates the report | svelte, sveltekit, runes, $state, $derived, $effect, load, form actions, shadcn-svelte, migrate Svelte 4 |
 | [agents-md-sync](skills/agents-md-sync) | Lifecycle of the project's AGENTS.md/CLAUDE.md hierarchy — scaffold a new subfolder's local rules, sync the root map against real files, audit non-repetition/isolation/additive-contract/map-sync invariants | AGENTS.md, CLAUDE.md, scaffold feature, audit hiérarchie, synchroniser carte, créer un module avec ses conventions |
 
 ### naming-convention
@@ -121,6 +122,15 @@ trackers, coherence, math notation) instead of duplicating them.
 - **Strict coherence gates**: blocking, evidence-backed check after every
   revision, logged in the tracker; `done` only after a final full-set
   gate on fresh evidence.
+
+### svelte-strict
+
+Svelte work where "done" is an exit code, not a claim:
+
+- **One CLI, `svs`** ([SKILL.md](skills/svelte-strict/SKILL.md)): `env` (real Svelte/Kit/shadcn versions, no defaults) → `start` (scope + git baseline) → `route` (which references to read) → `verify` (project compiler + ESLint, 3-pass limit) → `step` (records fix-root's `verify-test-first.sh`/`verify-suite.sh`) → `finish` (scope, hash-bound verification, anti-calibration, `svelte-check` vs a baseline worktree, naming-convention, validated waivers) → generated `report.md`.
+- **ESLint is the engine** ([tooling/](skills/svelte-strict/tooling)): eslint-plugin-svelte rules reused first, plus 44 `svelte-strict/*` rules (runes, state, SSR leaks via an import graph, SvelteKit load/forms/hooks/remote functions, shadcn-svelte composition) each with RuleTester good/bad cases. Catalog generated from rule metadata: [rules.md](skills/svelte-strict/references/rules.md).
+- **Legacy projects**: only findings the change adds block; `svs legacy-report` lists the rest as the migration work list. Waivers are proposed by the agent and validated only by the user.
+- Requires the sibling skills `fix-root` and `naming-convention`; tooling installs with `svs doctor --install` (pinned `npm ci`).
 
 ### agents-md-sync
 

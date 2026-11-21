@@ -482,6 +482,50 @@ sub extract_ts {
     return @ids;
 }
 
+# Svelte : seul le contenu des blocs <script> est du code (le reste devient des
+# lignes vides, les numéros de ligne restent justes), plus deux sortes de noms
+# choisis par le dev que l'extracteur TS ligne à ligne ne voit pas : les props
+# déstructurées de `$props()` (souvent sur plusieurs lignes) et les snippets.
+sub extract_svelte {
+    my ($file, $lines) = @_;
+    my $text = join "\n", @$lines;
+    my ($script, $pos) = ('', 0);
+    while ($text =~ /<script\b[^>]*>(.*?)<\/script>/gs) {
+        my ($s, $e) = ($-[1], $+[1]);
+        (my $gap = substr($text, $pos, $s - $pos)) =~ s/[^\n]//g;
+        $script .= $gap . substr($text, $s, $e - $s);
+        $pos = $e;
+    }
+    (my $tail = substr($text, $pos)) =~ s/[^\n]//g;
+    $script .= $tail;
+    my @ids = extract_ts($file, [ split /\n/, $script, -1 ], 0);
+    # Lignes comptées dans le texte où l'offset a été mesuré : $script garde les
+    # sauts de ligne de $text mais pas ses offsets.
+    my $line_at = sub { my ($src, $at) = @_; 1 + (substr($src, 0, $at) =~ tr/\n//) };
+    while ($script =~ /\b(?:let|const)\s*\{(.*?)\}\s*(?::[^=]*)?=\s*\$props\s*\(/gs) {
+        my ($body, $start) = ($1, $-[1]);
+        my ($depth, $from) = (0, 0);
+        for my $i (0 .. length($body)) {
+            my $ch = $i < length($body) ? substr($body, $i, 1) : ',';
+            $depth++ if $ch =~ /[(\[{]/;
+            $depth-- if $ch =~ /[)\]}]/;
+            next unless $ch eq ',' && $depth <= 0;
+            my $part = substr($body, $from, $i - $from);
+            my $off = $from;
+            $from = $i + 1;
+            my $name = $part =~ /^\s*[\w\$]+\s*:\s*([A-Za-z_]\w*)/ ? $1       # { class: className }
+                     : $part =~ /^\s*(?:\.\.\.)?([A-Za-z_]\w*)/   ? $1       # { title }, { a = 1 }, { ...rest }
+                     : next;
+            my ($lead) = $part =~ /^(\s*)/;
+            push @ids, { name => $name, line => $line_at->($script, $start + $off + length $lead), kind => 'variable', lang => 'ts' };
+        }
+    }
+    while ($text =~ /\{#snippet\s+([A-Za-z_]\w*)\s*\(/g) {
+        push @ids, { name => $1, line => $line_at->($text, $-[1]), kind => 'variable', lang => 'ts' };
+    }
+    return @ids;
+}
+
 sub extract_py {
     my ($file, $lines) = @_;
     my @ids; my $lineno = 0;
@@ -572,7 +616,7 @@ sub check_filename {
         add('casing-files', 'CASING', 'error', $path, 0, $stem,
             "attendu en PascalCase") unless is_pascal($stem);
     }
-    elsif ($path =~ /\.(ts|tsx|js|jsx|mjs|cjs)$/) {
+    elsif ($path =~ /\.(ts|tsx|js|jsx|mjs|cjs|svelte)$/) {
         add('casing-files', 'CASING', 'error', $path, 0, $stem,
             "attendu en kebab-case (module) ou PascalCase (composant/classe) — une casse propre au projet se déclare dans custom.md")
             unless is_kebab($stem) || is_pascal($stem);
@@ -588,7 +632,7 @@ for my $t (@TARGETS) {
         File::Find::find({ wanted => sub {
             if (-d $_) { $File::Find::prune = 1 if $_ =~ $SKIP_DIR; return }
             push @FILES, $File::Find::name
-                if -f $_ && /\.(ts|tsx|js|jsx|mjs|cjs|py|rb|dart|java|kt|cs|css|scss|sass|less)$/;
+                if -f $_ && /\.(ts|tsx|js|jsx|mjs|cjs|svelte|py|rb|dart|java|kt|cs|css|scss|sass|less)$/;
         }, no_chdir => 0 }, $t);
     }
 }
@@ -596,13 +640,14 @@ for my $t (@TARGETS) {
 
 for my $file (sort @FILES) {
     check_filename($file);
-    next unless $file =~ /\.(ts|tsx|js|jsx|mjs|cjs|py|rb)$/;
+    next unless $file =~ /\.(ts|tsx|js|jsx|mjs|cjs|svelte|py|rb)$/;
     open my $fh, '<', $file or next;
     my @lines = <$fh>;
     close $fh;
     chomp @lines;
     my @ids = $file =~ /\.(py)$/      ? extract_py($file, \@lines)
             : $file =~ /\.(rb)$/      ? extract_rb($file, \@lines)
+            : $file =~ /\.svelte$/    ? extract_svelte($file, \@lines)
             :                           extract_ts($file, \@lines, ($file =~ /\.(tsx|jsx)$/ ? 1 : 0));
     # Dédup : un identifiant déclaré une fois = un finding, pas un par occurrence
     my %seen;
