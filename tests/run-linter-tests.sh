@@ -160,6 +160,17 @@ else report FAIL ".svelte" "findings" "attendu '$want', obtenu '$got'"; fi
 rm -rf "$SV_DIR"
 
 echo ""
+echo "── Tests .go : niveau package, blocs var/const/type, noms imposés par Go exemptés ──"
+GO_DIR="$(mktemp -d)"
+printf 'package users\n\nfunc GetUser() error { return nil }\n\nfunc doStuff() {}\n\nfunc (s *Store) fetchData() string { return "{" }\n\nfunc init() {}\n\nfunc TestGetUser(t *T) {}\n\nfunc (e *userError) Error() string { return "" }\n\nconst MAX_RETRIES = 3\n\nvar (\n\ttmpValue2 = 1\n)\n\nfunc listUsers() {\n\tlocal := 1\n\t_ = local\n}\n\nfunc NewStore() *Store { return nil }\n\nfunc MustParseUser(s string) *User { return nil }\n' > "$GO_DIR/user_service.go"
+printf 'package users\n' > "$GO_DIR/UserService.go"
+got=$(perl "$LINTER_DIR/nc-lint.pl" "$GO_DIR" --json | python3 -c 'import json,sys; print(" ".join(sorted("%s@%s:%s" % (f["name"], f["line"], f["rule"]) for f in json.load(sys.stdin)["findings"] if f["severity"] == "error")))')
+want="MAX_RETRIES@15:CASING UserService@0:CASING doStuff@5:PREFIX doStuff@5:VAGUE fetchData@7:VAGUE tmpValue2@18:NUMBERED tmpValue2@18:VAGUE"
+if [[ "$got" == "$want" ]]; then report PASS ".go" "findings" "$want"
+else report FAIL ".go" "findings" "attendu '$want', obtenu '$got'"; fi
+rm -rf "$GO_DIR"
+
+echo ""
 echo "── Test de non-régression : architecture (une passe par fichier, jamais par ligne) ──"
 # Le gain mesuré (7 min → 0,07 s) vient à ~98 % de ce principe, pas du langage
 # (voir nc-lint.pl, en-tête). Deux gardes pour qu'il ne régresse pas en silence :

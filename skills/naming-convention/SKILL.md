@@ -21,7 +21,7 @@ the cases listed under « When to load the vocabulary files » below.
 | **Prefixes (write)** | create, update, delete, add, remove, set, send, upload |
 | **Prefixes (verify)** | is, has, can, validate |
 | **Prefixes (compute/transform)** | calculate, count, format, convert, parse, map, filter, serialize |
-| **Prefixes (orchestrate/init)** | handle, process, execute, sync, init, build, generate, reset |
+| **Prefixes (orchestrate/init)** | handle, process, execute, sync, init, build, generate, reset, new, must |
 | **Prefixes (lifecycle)** | run, start, stop, open, close, load, save, apply, refresh, retry |
 | **Prefixes (events/hooks)** | register, subscribe, unsubscribe, emit, connect, disconnect, toggle, notify, render, use, on |
 | **Entities** | User, Session, Token, Role, Permission, Order, Cart, Item, Product, Payment, Invoice, Subscription, Message, Notification, Document, Report, Team, Project, Task, Event, Config, Log, Job, Request, Response, Error, Cache, Query |

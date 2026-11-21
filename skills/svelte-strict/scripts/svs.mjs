@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // svs — the svelte-strict gate. Every decision is an exit code, every step is
 // recorded in .svelte-strict/state.json by this script only (never by hand).
+// The gate machinery (state, baseline, scope, waivers, steps, finish, report)
+// lives in the strict-core skill; this file only adds the Svelte analysis.
 //
 //   0 pass · 1 fail or unverified · 2 usage/environment · 3 only pre-existing suite failures
 //
@@ -10,51 +12,26 @@
 //           hook post-tool-use|stop · gen-references [--check]
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SKILL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOOLING = path.join(SKILL, 'tooling');
-const MAX_PASSES = 3;
-const KINDS = ['bug', 'feature', 'migration', 'ui', 'refactor'];
-const PROTECTED = /(^|\/)(eslint\.config\.[cm]?[jt]s|\.eslintrc[^/]*|\.eslintignore|tsconfig[^/]*\.json|jsconfig\.json|svelte\.config\.[cm]?[jt]s|vite\.config\.[cm]?[jt]s|components\.json)$/;
-const SUPPRESSION = /svelte-ignore|eslint-disable|@ts-ignore|@ts-expect-error|@ts-nocheck/;
-const ANY = /(:\s*any\b|\bas\s+any\b|<any>)/;
+const CORE = path.join(SKILL, '..', 'strict-core', 'lib', 'core.mjs');
+if (!fs.existsSync(CORE)) { console.error('svs: required skill missing: strict-core — install it next to svelte-strict.'); process.exit(2); }
+const { createCore, die, posix, readJSON, writeJSON, sortKeys, sha } = await import(pathToFileURL(CORE).href);
 
-// ── small utils ──────────────────────────────────────────────────────────────
-const die = (code, msg) => { if (msg) console.error(msg); process.exit(code); };
-const sha = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
-const posix = (p) => p.split(path.sep).join('/');
-const readJSON = (p, d = null) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return d; } };
-const sortKeys = (v) => Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v;
-const writeJSON = (p, v) => fs.writeFileSync(p, `${JSON.stringify(sortKeys(v), null, 2)}\n`);
-
-function projectRoot() {
-  const flag = process.argv.indexOf('--project');
-  let dir = path.resolve(flag > 0 ? process.argv.splice(flag, 2)[1] : process.cwd());
-  for (let d = dir; ; d = path.dirname(d)) {
-    if (fs.existsSync(path.join(d, 'package.json'))) return d;
-    if (path.dirname(d) === d) return dir;
-  }
-}
-const ROOT = projectRoot();
-const STATE_DIR = path.join(ROOT, '.svelte-strict');
-const STATE = path.join(STATE_DIR, 'state.json');
-const WAIVERS = path.join(STATE_DIR, 'waivers.md');
-const rel = (p) => posix(path.relative(ROOT, path.resolve(ROOT, p)));
-const fileHash = (r) => { const p = path.join(ROOT, r); return fs.existsSync(p) ? sha(fs.readFileSync(p)) : 'deleted'; };
-
-function git(args, opts = {}) {
-  const r = spawnSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 << 20, ...opts });
-  return r.status === 0 ? r.stdout : null;
-}
-const inGit = () => git(['rev-parse', '--is-inside-work-tree'])?.trim() === 'true';
-
-function loadState() { return readJSON(STATE, { task: null, steps: {}, verify: { passes: 0, files: {} }, shadcn: {}, routeTags: [] }); }
-function saveState(s) { fs.mkdirSync(STATE_DIR, { recursive: true }); fs.writeFileSync(path.join(STATE_DIR, '.gitignore'), '*\n'); writeJSON(STATE, s); }
-function openTask(s) { if (!s.task?.open) die(2, 'svs: no open task — run `svs start <glob…>` first.'); return s.task; }
+const core = createCore({
+  cli: 'svs', tool: 'svelte-strict', stateDirName: '.svelte-strict', rootMarker: 'package.json', skillDir: SKILL,
+  kinds: ['bug', 'feature', 'migration', 'ui', 'refactor'],
+  protectedRe: /(^|\/)(eslint\.config\.[cm]?[jt]s|\.eslintrc[^/]*|\.eslintignore|tsconfig[^/]*\.json|jsconfig\.json|svelte\.config\.[cm]?[jt]s|vite\.config\.[cm]?[jt]s|components\.json)$/,
+  suppressionRe: /svelte-ignore|eslint-disable|@ts-ignore|@ts-expect-error|@ts-nocheck/,
+  loosen: { re: /(:\s*any\b|\bas\s+any\b|<any>)/, files: /\.(ts|svelte)$/ },
+  starWaivers: ['shadcn-overwrite', 'shadcn-registry-url'],
+  stateExtra: { shadcn: {} },
+});
+const { ROOT, STATE_DIR, rel, fileHash, git, loadState, saveState, openTask, inScope, waived } = core;
 
 function loadEnv() {
   const env = readJSON(path.join(STATE_DIR, 'env.json'));
@@ -66,37 +43,8 @@ async function engine() {
   return import(pathToFileURL(path.join(TOOLING, 'engine.mjs')).href);
 }
 
-// ── glob (minimal: **, *, ?) ─────────────────────────────────────────────────
-function globRe(glob) {
-  let re = '';
-  for (let i = 0; i < glob.length; i++) {
-    const c = glob[i];
-    if (c === '*' && glob[i + 1] === '*') { re += glob[i + 2] === '/' ? '(?:.*/)?' : '.*'; i += glob[i + 2] === '/' ? 2 : 1; }
-    else if (c === '*') re += '[^/]*';
-    else if (c === '?') re += '[^/]';
-    else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-  }
-  return new RegExp(`^${re}$`);
-}
-const inScope = (task, r) => task.scope.some((g) => globRe(g).test(r));
-
-// ── waivers ──────────────────────────────────────────────────────────────────
-// .svelte-strict/waivers.md table: | rule | target | reason | validated |
-// `svs waive` always writes `non`. Only the user turns it into `oui`.
-function waivers() {
-  if (!fs.existsSync(WAIVERS)) return [];
-  return fs.readFileSync(WAIVERS, 'utf8').split('\n')
-    .map((l) => l.split('|').slice(1, -1).map((c) => c.trim()))
-    .filter((c) => c.length === 4 && c[0] !== 'rule' && !/^-+$/.test(c[0]))
-    .map(([rule, target, reason, validated]) => ({ rule, target, reason, validated: validated.toLowerCase() === 'oui' }));
-}
-const waived = (rule, target) => waivers().some((w) => w.validated && w.rule === rule && (w.target === target || w.target === '*'));
-
 // ── env ──────────────────────────────────────────────────────────────────────
-function pkgVersion(name) {
-  const p = path.join(ROOT, 'node_modules', name, 'package.json');
-  return readJSON(p)?.version ?? null;
-}
+const pkgVersion = (name) => readJSON(path.join(ROOT, 'node_modules', name, 'package.json'))?.version ?? null;
 function detectEnv() {
   const pkg = readJSON(path.join(ROOT, 'package.json'), {});
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
@@ -142,17 +90,13 @@ function cmdDoctor(args) {
     } else problems.push(`tooling not installed: svs doctor --install (runs npm ci in ${posix(TOOLING)})`);
   }
   for (const [skill, file] of [['fix-root', 'scripts/verify-suite.sh'], ['naming-convention', 'linter/lint.sh']]) {
-    if (!siblingSkill(skill, file)) problems.push(`required skill missing: ${skill} (${file}) — install it next to svelte-strict`);
+    if (!core.siblingSkill(skill, file)) problems.push(`required skill missing: ${skill} (${file}) — install it next to svelte-strict`);
   }
   if (spawnSync('git', ['--version']).status !== 0) problems.push('git not found');
   for (const p of problems) console.error(`✗ ${p}`);
   if (problems.length) return 2;
   console.log('svs doctor: ok (graph: use codebase-memory if connected, else svs falls back to its own import resolver)');
   return 0;
-}
-function siblingSkill(skill, file) {
-  const p = path.join(SKILL, '..', skill, file);
-  return fs.existsSync(p) ? p : null;
 }
 
 function cmdEnv() {
@@ -164,32 +108,7 @@ function cmdEnv() {
   return 0;
 }
 
-function cmdStart(args) {
-  const kindAt = args.indexOf('--kind');
-  const kind = kindAt >= 0 ? args.splice(kindAt, 2)[1] : 'feature';
-  const resume = args.includes('--resume');
-  const scope = args.filter((a) => !a.startsWith('--'));
-  const s = loadState();
-  if (resume) {
-    openTask(s);
-    s.task.resumes = (s.task.resumes ?? 0) + 1;
-    s.verify.passes = 0;
-    saveState(s);
-    console.log(`svs: task resumed (resume #${s.task.resumes}, recorded in the report).`);
-    return 0;
-  }
-  if (!KINDS.includes(kind)) die(2, `svs start: --kind must be one of ${KINDS.join(', ')}`);
-  if (!scope.length) die(2, 'svs start: give the scope as globs, e.g. `svs start "src/routes/login/**" src/lib/auth.ts`');
-  if (!fs.existsSync(path.join(STATE_DIR, 'env.json'))) die(2, 'svs start: run `svs env` first.');
-  if (!inGit()) die(2, 'svs start: not a git repository — the baseline (D1) needs git.');
-  const baseline = git(['stash', 'create'])?.trim() || git(['rev-parse', 'HEAD'])?.trim();
-  if (!baseline) die(2, 'svs start: no commit to use as baseline (commit once first).');
-  saveState({ task: { open: true, kind, scope, baseline, resumes: 0 }, steps: {}, verify: { passes: 0, files: {} }, shadcn: {}, routeTags: [] });
-  console.log(`svs: task started — kind=${kind}, baseline=${baseline.slice(0, 12)}, scope=${scope.join(' ')}`);
-  return 0;
-}
-
-const REFERENCES = { svelte: 'references/state-decision.md', legacy: 'references/migration-runes.md', kit: 'references/sveltekit.md', shadcn: 'references/shadcn.md', test: 'references/testing.md' };
+const REFERENCES = { svelte: 'references/svelte.md', legacy: 'references/svelte.md', test: 'references/svelte.md', kit: 'references/sveltekit.md', shadcn: 'references/shadcn.md' };
 function routeTags(env, files) {
   const tags = new Set();
   for (const f of files) {
@@ -223,20 +142,6 @@ async function cmdRoute(files) {
   return 0;
 }
 
-/** Findings for the current content vs the baseline content: new = count increase per rule|message. */
-async function compare(env, eng, r, reachable, baseline) {
-  const abs = path.join(ROOT, r);
-  const now = await eng.analyze(env, abs, fs.readFileSync(abs, 'utf8'), reachable);
-  const old = git(['show', `${baseline}:${r}`]);
-  const before = old == null ? [] : await eng.analyze(env, abs, old, reachable);
-  const key = (f) => `${f.rule}|${f.message}`;
-  const count = (list) => list.reduce((m, f) => m.set(key(f), (m.get(key(f)) ?? 0) + 1), new Map());
-  const a = count(now), b = count(before);
-  const fresh = now.filter((f) => (a.get(key(f)) ?? 0) > (b.get(key(f)) ?? 0));
-  const preExisting = now.length - fresh.length;
-  return { now, fresh, preExisting };
-}
-
 async function cmdVerify(args) {
   const json = args.includes('--json');
   const files = args.filter((a) => !a.startsWith('--')).map(rel);
@@ -252,66 +157,33 @@ async function cmdVerify(args) {
   }
   const reachable = eng.serverReachable(env);
   const report = { gate: [], review: [], waived: [], preExisting: 0 };
+  const perFile = {};
   for (const r of files) {
-    const { fresh, preExisting } = await compare(env, eng, r, reachable, task.baseline);
+    const abs = path.join(ROOT, r);
+    const now = await eng.analyze(env, abs, fs.readFileSync(abs, 'utf8'), reachable);
+    const old = git(['show', `${task.baseline}:${r}`]);
+    const before = old == null ? [] : await eng.analyze(env, abs, old, reachable);
+    const fresh = core.newFindings(now, before, (f) => `${f.rule}|${f.message}`);
+    const preExisting = now.length - fresh.length;
     report.preExisting += preExisting;
     for (const f of fresh) {
       if (f.class === 'review') report.review.push(f);
       else if (waived(f.rule, f.file)) report.waived.push(f);
       else report.gate.push(f);
     }
-    s.verify.files[r] = { hash: fileHash(r), ok: !fresh.some((f) => f.class === 'gate' && !waived(f.rule, f.file)), preExisting, review: fresh.filter((f) => f.class === 'review') };
+    perFile[r] = { hash: fileHash(r), ok: !fresh.some((f) => f.class === 'gate' && !waived(f.rule, f.file)), preExisting, review: fresh.filter((f) => f.class === 'review') };
   }
   const ok = report.gate.length === 0;
-  s.verify.passes = ok ? 0 : s.verify.passes + 1;
-  saveState(s);
-  if (json) console.log(JSON.stringify(sortKeys({ ok, passes: s.verify.passes, ...report }), null, 2));
+  const passes = core.recordVerify(s, perFile, ok);
+  if (json) console.log(JSON.stringify(sortKeys({ ok, passes, ...report }), null, 2));
   else {
     for (const f of report.gate) console.log(`GATE    ${f.file}:${f.line}:${f.column}  ${f.rule}  ${f.message}`);
     for (const f of report.waived) console.log(`WAIVED  ${f.file}:${f.line}:${f.column}  ${f.rule}`);
     for (const f of report.review) console.log(`REVIEW  ${f.file}:${f.line}:${f.column}  ${f.rule}  ${f.message}`);
     if (report.preExisting) console.log(`(${report.preExisting} pre-existing finding(s) in these files: not blocking, listed by \`svs legacy-report\`)`);
-    console.log(`verify: ${ok ? 'PASS' : `FAIL (${report.gate.length} new gate finding(s), pass ${s.verify.passes}/${MAX_PASSES})`}`);
-  }
-  if (!ok && s.verify.passes >= MAX_PASSES) {
-    console.error(`STOP: ${MAX_PASSES} failing passes. Do not keep patching: ask the user (fix strategy, or a waiver they validate), then \`svs start --resume\`.`);
+    console.log(`verify: ${ok ? 'PASS' : `FAIL (${report.gate.length} new gate finding(s), pass ${passes}/${core.MAX_PASSES})`}`);
   }
   return ok ? 0 : 1;
-}
-
-function changedFiles(task) {
-  const tracked = (git(['diff', '--name-only', task.baseline]) ?? '').split('\n');
-  const untracked = (git(['ls-files', '--others', '--exclude-standard']) ?? '').split('\n');
-  return [...new Set([...tracked, ...untracked])].filter((f) => f && !f.startsWith('.svelte-strict/')).sort();
-}
-function scopeTreeHash(task) {
-  return sha(changedFiles(task).map((f) => `${f}:${fileHash(f)}`).join('\n'));
-}
-
-function cmdStep(args) {
-  const sep = args.indexOf('--');
-  const name = args[0];
-  if (!name || sep < 0 || sep === args.length - 1) die(2, 'svs step: usage `svs step <name> -- <cmd…>` (names: test-first, suite, or any).');
-  const s = loadState();
-  const task = openTask(s);
-  const [cmd, ...rest] = args.slice(sep + 1);
-  const r = spawnSync(cmd, rest, { cwd: ROOT, stdio: 'inherit' });
-  const exit = r.status ?? 1;
-  s.steps[name] = { exit, cmd: [cmd, ...rest].join(' '), tree: scopeTreeHash(task) };
-  saveState(s);
-  console.log(`svs step ${name}: exit ${exit} (recorded)`);
-  return exit;
-}
-
-function cmdWaive(args) {
-  const [rule, target, ...reason] = args;
-  if (!rule || !target || !reason.length) die(2, 'svs waive: usage `svs waive <rule> <file|*> <reason…>`');
-  if (target === '*' && !['shadcn-overwrite', 'shadcn-registry-url'].includes(rule)) die(2, 'svs waive: `*` is only allowed for shadcn-overwrite / shadcn-registry-url.');
-  fs.mkdirSync(STATE_DIR, { recursive: true });
-  if (!fs.existsSync(WAIVERS)) fs.writeFileSync(WAIVERS, '# Waivers — only the user may change `non` to `oui`\n\n| rule | target | reason | validated |\n|---|---|---|---|\n');
-  fs.appendFileSync(WAIVERS, `| ${rule} | ${target} | ${reason.join(' ').replace(/\|/g, '/')} | non |\n`);
-  console.log(`svs: waiver proposed (validated: non) in ${posix(path.relative(process.cwd(), WAIVERS))}. Ask the user to review it and set \`oui\`.`);
-  return 0;
 }
 
 // ── shadcn wrapper ───────────────────────────────────────────────────────────
@@ -398,20 +270,7 @@ function svelteCheck(dir) {
       if (d.type === 'ERROR' || d.type === 'WARNING') diags.push({ file: posix(d.filename), code: String(d.code ?? ''), message: String(d.message).split('\n')[0], line: (d.start?.line ?? 0) + 1 });
     } catch { /* not a diagnostic line */ }
   }
-  const completed = /COMPLETED/.test(r.stdout ?? '');
-  return { diags, completed };
-}
-function baselineSvelteCheck(task, env) {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'svs-baseline-'));
-  try {
-    if (git(['worktree', 'add', '--detach', tmp, task.baseline], { stdio: 'pipe' }) == null) return null;
-    if (fs.existsSync(path.join(ROOT, 'node_modules'))) fs.symlinkSync(path.join(ROOT, 'node_modules'), path.join(tmp, 'node_modules'), 'dir');
-    if (env.kit) spawnSync(process.execPath, [path.join(ROOT, 'node_modules', '@sveltejs', 'kit', 'svelte-kit.js'), 'sync'], { cwd: tmp, stdio: 'ignore' });
-    return svelteCheck(tmp);
-  } finally {
-    git(['worktree', 'remove', '--force', tmp]);
-    fs.rmSync(tmp, { recursive: true, force: true });
-  }
+  return { diags, completed: /COMPLETED/.test(r.stdout ?? '') };
 }
 
 // ── finish ───────────────────────────────────────────────────────────────────
@@ -420,109 +279,39 @@ async function cmdFinish() {
   const task = openTask(s);
   const env = loadEnv();
   const eng = await engine();
-  const checks = [];
-  const check = (name, ok, detail = []) => checks.push({ name, ok, detail });
-  const changed = changedFiles(task);
-
-  // 1. scope
   const shadcnClean = (f) => s.shadcn[f] && s.shadcn[f] === fileHash(f);
-  const outOfScope = changed.filter((f) => !inScope(task, f) && !shadcnClean(f) && !waived('scope', f));
-  check('scope', outOfScope.length === 0, outOfScope.map((f) => `${f} changed outside the scope (svs start globs, or a validated \`scope\` waiver)`));
+  const checks = core.commonChecks(s, task, { verifiable: (f) => eng.LINTABLE.test(f), toolWritten: shadcnClean, namable: /\.(svelte|[cm]?[jt]s)$/ });
 
-  // 2. ui customizations: files written by `svs shadcn`, then edited
   const uiEdited = Object.keys(s.shadcn).filter((f) => s.shadcn[f] !== fileHash(f) && !waived('ui-customization', f));
-  check('ui-customizations', uiEdited.length === 0, uiEdited.map((f) => `${f} edited after shadcn wrote it: needs a validated \`ui-customization\` waiver`));
+  checks.push({ name: 'ui-customizations', ok: uiEdited.length === 0, detail: uiEdited.map((f) => `${f} edited after shadcn wrote it: needs a validated \`ui-customization\` waiver`) });
 
-  // 3. every changed lintable file verified on its CURRENT content
-  const unverified = changed.filter((f) => eng.LINTABLE.test(f) && fs.existsSync(path.join(ROOT, f)) && !shadcnClean(f))
-    .filter((f) => s.verify.files[f]?.hash !== fileHash(f) || !s.verify.files[f]?.ok);
-  check('verified', unverified.length === 0, unverified.map((f) => `${f}: ${s.verify.files[f] ? (s.verify.files[f].ok ? 'edited after verify' : 'last verify failed') : 'never verified'} — run svs verify ${f}`));
-
-  // 4. anti-calibration: suppressions, `any`, protected configs
-  const calib = [];
-  for (const f of changed) {
-    const added = fs.existsSync(path.join(ROOT, f))
-      ? (git(['ls-files', '--error-unmatch', f], { stdio: 'pipe' }) == null ? fs.readFileSync(path.join(ROOT, f), 'utf8').split('\n') : (git(['diff', '-U0', task.baseline, '--', f]) ?? '').split('\n').filter((l) => l.startsWith('+') && !l.startsWith('+++')))
-      : [];
-    if (added.some((l) => SUPPRESSION.test(l)) && !waived('suppression', f)) calib.push(`${f}: adds a lint/type suppression (needs a validated \`suppression\` waiver)`);
-    if (/\.(ts|svelte)$/.test(f) && added.some((l) => ANY.test(l)) && !waived('any', f)) calib.push(`${f}: adds \`any\` (needs a validated \`any\` waiver)`);
-    if (PROTECTED.test(f) && !shadcnClean(f) && !waived('config', f)) calib.push(`${f}: protected config changed (needs a validated \`config\` waiver)`);
+  // svelte-check: only NEW diagnostics block (D1), whole project, baseline worktree computed once
+  if (!s.baselineSvelteCheck) {
+    s.baselineSvelteCheck = core.withBaselineWorktree(task, (tmp) => {
+      if (env.kit) spawnSync(process.execPath, [path.join(ROOT, 'node_modules', '@sveltejs', 'kit', 'svelte-kit.js'), 'sync'], { cwd: tmp, stdio: 'ignore' });
+      return svelteCheck(tmp);
+    }, ['node_modules']);
   }
-  check('anti-calibration', calib.length === 0, calib);
-
-  // 5. svelte-check: only NEW diagnostics block (D1), whole project
-  if (!s.baselineSvelteCheck) s.baselineSvelteCheck = baselineSvelteCheck(task, env);
   const nowCheck = svelteCheck(ROOT);
   const base = s.baselineSvelteCheck;
-  if (!nowCheck.completed || !base?.completed) check('svelte-check', false, ['svelte-check did not complete (on the project or on the baseline worktree): UNVERIFIED']);
+  if (!nowCheck.completed || !base?.completed) checks.push({ name: 'svelte-check', ok: false, detail: ['svelte-check did not complete (on the project or on the baseline worktree): UNVERIFIED'] });
   else {
-    const key = (d) => `${d.file}|${d.code}|${d.message}`;
-    const before = base.diags.reduce((m, d) => m.set(key(d), (m.get(key(d)) ?? 0) + 1), new Map());
-    const fresh = [];
-    for (const d of nowCheck.diags) { const n = before.get(key(d)) ?? 0; if (n > 0) before.set(key(d), n - 1); else fresh.push(d); }
-    check('svelte-check', fresh.length === 0, fresh.map((d) => `${d.file}:${d.line} ${d.message}`));
+    const fresh = core.newFindings(nowCheck.diags, base.diags, (d) => `${d.file}|${d.code}|${d.message}`);
+    checks.push({ name: 'svelte-check', ok: fresh.length === 0, detail: fresh.map((d) => `${d.file}:${d.line} ${d.message}`) });
   }
 
-  // 6. naming-convention on the changed files, new findings only
-  const lint = siblingSkill('naming-convention', 'linter/lint.sh');
-  const namable = changed.filter((f) => /\.(svelte|[cm]?[jt]s)$/.test(f) && fs.existsSync(path.join(ROOT, f)));
-  if (!lint) check('naming', false, ['naming-convention skill not installed (svs doctor)']);
-  else if (namable.length) {
-    const r = spawnSync('bash', [lint, ...namable, '--since', task.baseline, '--no-color'], { cwd: ROOT, encoding: 'utf8' });
-    check('naming', r.status === 0, r.status === 0 ? [] : (r.stdout + r.stderr).split('\n').filter((l) => /✗|ERROR|error/i.test(l)).slice(0, 30));
-  } else check('naming', true);
-
-  // 7. recorded steps on the current tree
-  const tree = scopeTreeHash(task);
-  const step = (name, okExits) => {
-    const st = s.steps[name];
-    if (!st) return `${name}: never run (svs step ${name} -- …)`;
-    if (st.tree !== tree) return `${name}: run on an older version of the changes — run it again`;
-    if (!okExits.includes(st.exit)) return `${name}: exit ${st.exit}`;
-    return null;
-  };
-  const stepProblems = [step('suite', [0, 3])];
-  if (['bug', 'feature'].includes(task.kind)) stepProblems.push(step('test-first', [0]));
-  check('steps', stepProblems.every((p) => !p), stepProblems.filter(Boolean));
-
-  // 8. waivers all validated
-  const pending = waivers().filter((w) => !w.validated);
-  check('waivers', pending.length === 0, pending.map((w) => `${w.rule} ${w.target}: not validated by the user`));
-
-  const ok = checks.every((c) => c.ok);
-  const suite3 = s.steps.suite?.exit === 3;
   const { checklist } = await import(pathToFileURL(path.join(TOOLING, 'plugin', 'index.js')).href);
-  writeReport(s, task, checks, checklist.filter((c) => (s.routeTags ?? []).includes(c.when)), ok);
-  for (const c of checks) {
-    console.log(`${c.ok ? '✓' : '✗'} ${c.name}`);
-    for (const d of c.detail) console.log(`    ${d}`);
-  }
-  if (ok) { s.task.open = false; }
-  saveState(s);
-  console.log(`finish: ${ok ? (suite3 ? 'PASS with pre-existing suite failures (exit 3)' : 'PASS') : 'FAIL'} — report: ${posix(path.relative(process.cwd(), path.join(STATE_DIR, 'report.md')))}`);
-  return ok ? (suite3 ? 3 : 0) : 1;
-}
-
-function writeReport(s, task, checks, items, ok) {
-  const lines = [
-    '# svelte-strict report', '',
-    `- result: **${ok ? 'PASS' : 'FAIL'}**`,
-    `- kind: ${task.kind} · baseline: \`${task.baseline.slice(0, 12)}\` · resumes after the ${MAX_PASSES}-pass limit: ${task.resumes ?? 0}`,
-    `- scope: ${task.scope.map((g) => `\`${g}\``).join(' ')}`, '',
-    '## Gates', '', '| gate | result | detail |', '|---|---|---|',
-    ...checks.map((c) => `| ${c.name} | ${c.ok ? 'pass' : 'FAIL'} | ${c.detail.join('<br>').replace(/\|/g, '/')} |`), '',
-    '## Steps', '', '| step | exit | command |', '|---|---|---|',
-    ...Object.entries(s.steps).sort().map(([n, st]) => `| ${n} | ${st.exit} | \`${st.cmd.replace(/\|/g, '/')}\` |`), '',
-    '## Waivers', '',
-    ...(waivers().length ? ['| rule | target | reason | validated |', '|---|---|---|---|', ...waivers().map((w) => `| ${w.rule} | ${w.target} | ${w.reason} | ${w.validated ? 'oui' : 'non'} |`)] : ['none']), '',
-    '## Review findings (not blocking)', '',
-    ...(Object.values(s.verify.files).flatMap((v) => v.review ?? []).map((f) => `- \`${f.file}:${f.line}\` ${f.rule}: ${f.message}`).sort()),
-    ...(items.length ? ['', '### Checklist', '', ...items.map((c) => `- [ ] (${c.id}) ${c.text}`)] : []), '',
-    '## Pre-existing findings in touched files (legacy work list)', '',
-    ...Object.entries(s.verify.files).filter(([, v]) => v.preExisting).sort().map(([f, v]) => `- \`${f}\`: ${v.preExisting}`),
-    '', 'Full list: `svs legacy-report`.', '',
-  ];
-  fs.writeFileSync(path.join(STATE_DIR, 'report.md'), lines.join('\n'));
+  const items = checklist.filter((c) => (s.routeTags ?? []).includes(c.when));
+  return core.finalize(s, task, checks, [
+    { title: 'Review findings (not blocking)', lines: [
+      ...Object.values(s.verify.files).flatMap((v) => v.review ?? []).map((f) => `- \`${f.file}:${f.line}\` ${f.rule}: ${f.message}`).sort(),
+      ...(items.length ? ['', '### Checklist', '', ...items.map((c) => `- [ ] (${c.id}) ${c.text}`)] : []),
+    ] },
+    { title: 'Pre-existing findings in touched files (legacy work list)', lines: [
+      ...Object.entries(s.verify.files).filter(([, v]) => v.preExisting).sort().map(([f, v]) => `- \`${f}\`: ${v.preExisting}`),
+      '', 'Full list: `svs legacy-report`.',
+    ] },
+  ]);
 }
 
 // ── docs snapshot ────────────────────────────────────────────────────────────
@@ -549,27 +338,6 @@ function cmdDocs(args) {
     console.log(`docs: ${tag} -> ${posix(out)}`);
   }
   return 0;
-}
-
-// ── hooks (optional, Claude Code only) ───────────────────────────────────────
-async function cmdHook(args) {
-  const input = readJSON('/dev/stdin', {});
-  const s = loadState();
-  if (!s.task?.open) return 0;
-  if (args[0] === 'post-tool-use') {
-    const f = input.tool_input?.file_path;
-    if (!f || !/\.(svelte|[cm]?[jt]s)$/.test(f) || !inScope(s.task, rel(f))) return 0;
-    const r = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'verify', f, '--project', ROOT], { encoding: 'utf8' });
-    if (r.status !== 0) { process.stderr.write(r.stdout + r.stderr); return 2; }
-    return 0;
-  }
-  if (args[0] === 'stop') {
-    if (input.stop_hook_active) return 0; // already blocked once: let the user see report.md
-    const r = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'finish', '--project', ROOT], { encoding: 'utf8' });
-    if (r.status !== 0 && r.status !== 3) { process.stderr.write(`svelte-strict task still open — finish fails:\n${r.stdout}`); return 2; }
-    return 0;
-  }
-  die(2, 'svs hook: post-tool-use | stop');
 }
 
 // ── references generated from rule meta ─────────────────────────────────────
@@ -608,9 +376,10 @@ async function cmdGenReferences(args) {
 // ── main ─────────────────────────────────────────────────────────────────────
 const [command, ...args] = process.argv.slice(2);
 const commands = {
-  doctor: cmdDoctor, env: cmdEnv, start: cmdStart, route: cmdRoute, verify: cmdVerify, step: cmdStep,
-  waive: cmdWaive, shadcn: cmdShadcn, 'legacy-report': cmdLegacyReport, finish: cmdFinish, docs: cmdDocs,
-  hook: cmdHook, 'gen-references': cmdGenReferences,
+  doctor: cmdDoctor, env: cmdEnv, start: (a) => core.cmdStart(a), route: cmdRoute, verify: cmdVerify, step: core.cmdStep,
+  waive: core.cmdWaive, shadcn: cmdShadcn, 'legacy-report': cmdLegacyReport, finish: cmdFinish, docs: cmdDocs,
+  hook: (a) => core.cmdHook(a, { script: fileURLToPath(import.meta.url), matches: (f) => /\.(svelte|[cm]?[jt]s)$/.test(f) }),
+  'gen-references': cmdGenReferences,
 };
 if (!commands[command]) die(2, 'usage: svs doctor|env|start|route|verify|step|waive|shadcn|legacy-report|finish|docs|hook|gen-references');
 process.exitCode = await commands[command](args);

@@ -63,6 +63,8 @@ One prefix per method. No word outside this list (and `vocabulary/custom.md`) ma
 | `build` | Construct a complex object step by step |
 | `generate` | Produce a new value algorithmically |
 | `reset` | Restore to initial or default state |
+| `new` | Construct and return a ready-to-use instance (Go constructor convention: `NewStore`) |
+| `must` | Same as the function without it, but panics instead of returning an error (Go: `MustAdd`, `MustParse`) |
 
 ## LIFECYCLE
 | Prefix | Use when |

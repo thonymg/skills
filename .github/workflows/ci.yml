@@ -27,6 +27,22 @@ jobs:
       - name: Run svelte-strict tests
         run: bash tests/run-svelte-strict-tests.sh
 
+  pocketbase-go-tests:
+    name: Tests pocketbase-go (analysistest + pbg on a real PocketBase app)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run pocketbase-go tests
+        env:
+          GOTOOLCHAIN: auto
+        run: bash tests/run-pocketbase-go-tests.sh
+
   shellcheck:
     name: Shellcheck
     runs-on: ubuntu-latest
@@ -39,4 +55,5 @@ jobs:
             skills/naming-convention/linter/lib/*.sh \
             skills/naming-convention/linter/checks/*.sh \
             tests/run-linter-tests.sh \
-            tests/run-svelte-strict-tests.sh
+            tests/run-svelte-strict-tests.sh \
+            tests/run-pocketbase-go-tests.sh

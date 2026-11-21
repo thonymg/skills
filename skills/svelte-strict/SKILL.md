@@ -1,6 +1,6 @@
 ---
 name: svelte-strict
-description: Deterministic workflow for writing, fixing, migrating or reviewing Svelte 5 (runes), SvelteKit and shadcn-svelte code, gated by scripts instead of self-report. A single CLI (svs) detects the real versions, scopes the task, lints every touched file with the project's own compiler plus eslint-plugin-svelte plus 44 tested svelte-strict rules (runes, state, SSR leaks, SvelteKit load/forms/hooks, shadcn-svelte composition), blocks only NEW findings against a git baseline, forbids silent suppressions and config loosening, and generates the report. Use whenever a task creates or edits a .svelte file, a .svelte.ts/.svelte.js module, a SvelteKit route/hook/remote file, or shadcn-svelte UI; when migrating Svelte 4 / legacy syntax (export let, $:, on:, slots, stores) to runes; or when the user mentions Svelte, SvelteKit, runes, $state, $derived, $effect, $props, load functions, form actions, or shadcn-svelte. Complements the official svelte and shadcn-svelte skills; bugs still go through fix-root.
+description: Use for ANY Svelte or SvelteKit coding task, even a single component — creating, editing, fixing or reviewing a .svelte file, a .svelte.ts/.svelte.js module, a SvelteKit route, load function, form action, hook or remote function, or shadcn-svelte UI; migrating Svelte 4 / legacy syntax (export let, $:, on:, slots, stores) to runes; or whenever the user mentions Svelte, SvelteKit, runes, $state, $derived, $effect, $props or shadcn-svelte. A deterministic workflow gated by scripts instead of self-report — one CLI (svs) detects the real versions, scopes the task, lints every touched file with the project's own compiler, eslint-plugin-svelte and 44 tested svelte-strict rules (runes, state, SSR leaks, SvelteKit, shadcn-svelte composition), blocks only NEW findings against a git baseline, forbids silent suppressions and config loosening, and generates the report. Complements the official svelte and shadcn-svelte skills; bugs still go through fix-root.
 ---
 
 # svelte-strict
@@ -32,13 +32,25 @@ Never edit a protected config (`eslint.config.*`, `tsconfig*`, `svelte.config.*`
 
 | Tag | File | Contents |
 |---|---|---|
-| svelte | [references/state-decision.md](references/state-decision.md) | Which primitive for which need: `$state`, `$state.raw`, `$derived`, classes, `createContext`, stores |
-| legacy | [references/migration-runes.md](references/migration-runes.md) | Svelte 4 → runes, item by item, with the traps |
+| svelte, legacy, test | [references/svelte.md](references/svelte.md) | Which primitive for which need (`$state`, `$derived`, classes, `createContext`, stores); Svelte 4 → runes item by item; testing without sleeps |
 | kit | [references/sveltekit.md](references/sveltekit.md) | load, forms, remote functions, hooks, SSR state, env, Kit 2 vs 3 |
 | shadcn | [references/shadcn.md](references/shadcn.md) | shadcn-svelte workflow through `svs shadcn`, component choice |
-| test | [references/testing.md](references/testing.md) | Testing runes and components without sleeps |
 | — | [references/rules.md](references/rules.md) | Generated catalog: every rule, class, version gate, fix |
-| — | [references/hooks.md](references/hooks.md) | Optional Claude Code hooks (never the only path) |
+
+## Optional Claude Code hooks
+
+The workflow above is the portable path (pi and Claude Code). In Claude Code, two
+hooks can run the same commands while a task is open: `PostToolUse` on
+`Edit|Write` runs `svs verify` on the edited file, `Stop` runs `svs finish`
+(blocks the end of the turn once). Add to `.claude/settings.json` (project) or
+`~/.claude/settings.json` (account):
+
+```json
+{ "hooks": {
+  "PostToolUse": [{ "matcher": "Edit|Write", "hooks": [{ "type": "command", "command": "node <skill-dir>/scripts/svs.mjs hook post-tool-use" }] }],
+  "Stop": [{ "hooks": [{ "type": "command", "command": "node <skill-dir>/scripts/svs.mjs hook stop" }] }]
+} }
+```
 
 ## Code graph (codebase-memory)
 
@@ -54,6 +66,6 @@ misses `.svelte` files or lines, fall back to grep and say so.
 
 ## Scope limits
 
-- Not a replacement for fix-root (bugs) or naming-convention (names): both are required sibling skills, called by `svs finish`.
+- Not a replacement for fix-root (bugs) or naming-convention (names): both are required sibling skills, called by `svs finish`, as is `strict-core` (the shared gate machinery).
 - `docs`: `$SVS docs sync` snapshots the official Svelte/Kit docs at the exact installed tags into `.svelte-strict/docs/` for offline, version-exact reading.
 - Rules that no script can decide are in the review checklist, never presented as verified.

@@ -23,7 +23,7 @@ Gate rules block `svs verify`/`svs finish` when NEW (D1). Review rules and the c
 | `svelte-strict/no-export-primitive-state` | gate | state | always | Export an object, a class instance with `$state` fields, or getter/setter functions. |
 | `svelte-strict/no-imported-runes` | gate | runes | always | Remove the import; use `$state(…)` directly. |
 | `svelte-strict/no-prop-mutation` | gate | runes | always | Declare the prop with `$bindable()`, or emit a callback prop and let the owner mutate. |
-| `svelte-strict/no-store-as-state` | gate | state | always | See references/state-decision.md: class with `$state` fields, or `createContext` for SSR-safe sharing. |
+| `svelte-strict/no-store-as-state` | gate | state | always | See references/svelte.md: class with `$state` fields, or `createContext` for SSR-safe sharing. |
 | `svelte-strict/no-swallowed-redirect` | gate | kit | kit | Call it outside the `try`, or rethrow in the `catch` (`if (isRedirect(e)) throw e`). |
 | `svelte-strict/prop-derived-without-derived` | gate | runes | always | Wrap the expression in `$derived(…)`. |
 | `svelte-strict/remote-needs-schema` | gate | kit | remote, kit >=2.27.0 | Pass a Standard Schema first: `query(v.string(), async (id) => …)`. |

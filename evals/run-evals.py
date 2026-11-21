@@ -217,8 +217,10 @@ def run_case(case, skill, with_skill, model, timeout, calibrate=False, without_s
 
     metrics["changed_lines"] = changed_lines
     metrics["track"] = announced_track(final_text)
+    # The answer is kept (truncated) so that a failing check can be diagnosed
+    # from the results file instead of being re-run.
     return {"passed": not reasons, "reason": "; ".join(reasons),
-            "triggered": triggered, "metrics": metrics}
+            "triggered": triggered, "metrics": metrics, "answer": final_text[:3000]}
 
 
 def run(argv=None):

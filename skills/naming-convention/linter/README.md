@@ -101,6 +101,7 @@ Chaque check émet une ligne machine-parsable `RESULT:<check>:errors=N:warnings=
 |---|---|---|
 | TypeScript / JavaScript / TSX / JSX | ✅ | ✅ kebab ou Pascal |
 | Svelte (`.svelte`) | ✅ blocs `<script>`, props de `$props()` (multi-lignes), noms de `{#snippet}` | ✅ kebab ou Pascal (`+page.svelte` exempté) |
+| Go | ✅ niveau package (func, méthodes, types, var/const, blocs), noms imposés par Go exemptés (`init`, `Test*`, `String`, `Error`, `ServeHTTP`…) | ✅ snake |
 | Python | ✅ | ✅ snake |
 | Ruby / Rails | ✅ | ✅ snake + migrations timestampées |
 | Dart | — | ✅ snake |

@@ -79,7 +79,7 @@ svs start "src/lib/**" --kind refactor; expect "start" 0 "$RC" "$OUT" "baseline=
 echo "── route ───────────────────────────────────────────────────"
 svs route src/lib/Legacy.svelte; first="$OUT"
 svs route src/lib/Legacy.svelte
-if [[ "$OUT" == "$first" ]] && grep -q "migration-runes.md" <<<"$OUT"; then report PASS "route is deterministic, tags legacy" "same output twice"; else report FAIL "route is deterministic, tags legacy" "$OUT"; fi
+if [[ "$OUT" == "$first" ]] && grep -q "references/svelte.md" <<<"$OUT"; then report PASS "route is deterministic, tags legacy" "same output twice"; else report FAIL "route is deterministic, tags legacy" "$OUT"; fi
 
 echo "── verify: D1 baseline, gate, scope, pass limit ────────────"
 svs verify src/lib/Legacy.svelte; expect "pre-existing legacy findings do not block" 0 "$RC" "$OUT" "pre-existing"

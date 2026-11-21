@@ -33,6 +33,8 @@ Or install globally with `-g`. Learn more at [vercel-labs/skills](https://github
 | [plan-feat](skills/plan-feat) | Module-level implementation plans for a **new** feature or application — directive markdown plans (Gherkin, glossed math invariants), doc-coherence preflight, progress tracker, critique rounds; never writes code | implementation plan, plan d'implémentation, plan de feature, découpage en modules, planifier une application, /plan-feat |
 | [plan-update](skills/plan-update) | Update plans for an **existing** feature — current-state reconnaissance, impact analysis with ripple set, delta plans, data migration & deprecation, blocking coherence gates; revises plan files in place, never writes code | modifier une feature, faire évoluer, plan de modification, plan d'évolution, update/evolve a feature, /plan-update |
 | [svelte-strict](skills/svelte-strict) | Deterministic Svelte 5 (runes) + SvelteKit + shadcn-svelte workflow — one CLI (`svs`) scopes the task, lints with the project's compiler + eslint-plugin-svelte + 44 tested rules, blocks only NEW findings vs a git baseline, forbids silent suppressions/config loosening, generates the report | svelte, sveltekit, runes, $state, $derived, $effect, load, form actions, shadcn-svelte, migrate Svelte 4 |
+| [pocketbase-go](skills/pocketbase-go) | Deterministic PocketBase-as-a-Go-framework workflow — one CLI (`pbg`): 12 tested PocketBase analyzers + staticcheck + gofmt (new findings only), then an ephemeral PocketBase built from the project: API rules, a blocking access matrix (anon/owner/other + spoofing/ownership probes), migrations reversible against the baseline | pocketbase, OnRecordCreate, OnServe, e.Next, txApp, migrations, API rules, access control |
+| [strict-core](skills/strict-core) | Shared gate machinery of svelte-strict and pocketbase-go (state, git baseline, scope, user-validated waivers, steps, finish, report) — a library, never invoked directly | — |
 | [agents-md-sync](skills/agents-md-sync) | Lifecycle of the project's AGENTS.md/CLAUDE.md hierarchy — scaffold a new subfolder's local rules, sync the root map against real files, audit non-repetition/isolation/additive-contract/map-sync invariants | AGENTS.md, CLAUDE.md, scaffold feature, audit hiérarchie, synchroniser carte, créer un module avec ses conventions |
 
 ### naming-convention
@@ -131,6 +133,15 @@ Svelte work where "done" is an exit code, not a claim:
 - **ESLint is the engine** ([tooling/](skills/svelte-strict/tooling)): eslint-plugin-svelte rules reused first, plus 44 `svelte-strict/*` rules (runes, state, SSR leaks via an import graph, SvelteKit load/forms/hooks/remote functions, shadcn-svelte composition) each with RuleTester good/bad cases. Catalog generated from rule metadata: [rules.md](skills/svelte-strict/references/rules.md).
 - **Legacy projects**: only findings the change adds block; `svs legacy-report` lists the rest as the migration work list. Waivers are proposed by the agent and validated only by the user.
 - Requires the sibling skills `fix-root` and `naming-convention`; tooling installs with `svs doctor --install` (pinned `npm ci`).
+
+### pocketbase-go
+
+PocketBase used as a Go framework, where "done" is an exit code:
+
+- **`pbg`** ([SKILL.md](skills/pocketbase-go/SKILL.md)): `env` reads the real version and module path from `go.mod` (PocketBase moved to `ganigeorgiev.com` in v0.41; GitHub is frozen at v0.40.6) → `start` → `route` → `verify` → `step` → `finish`.
+- **Code**: 12 `go/analysis` analyzers with analysistest good/bad cases ([catalog](skills/pocketbase-go/references/rules.md)) — `e.Next()`, `txApp`/`e.App`, bound filters, `{param}` routes, closed filesystems, reversible migrations, Automigrate, cron ids, ignored errors, mail sender, settings cache, route auth — plus pinned staticcheck and gofmt, built with the project's Go toolchain.
+- **Runtime**: an ephemeral PocketBase built from the project (never under `/tmp`, so Automigrate stays off) validates every API rule, runs `pb-access.json` — the access specification, blocking: every collection with rules is covered for anon/owner/other plus spoofing and ownership probes — and checks that reverting the task's new migrations gives back exactly the baseline schema. Deny statuses were measured on v0.42.3, not copied from docs.
+- Requires `strict-core`, `fix-root` and `naming-convention` (which now reads `.go` and `.svelte`).
 
 ### agents-md-sync
 

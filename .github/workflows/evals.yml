@@ -8,7 +8,7 @@ on:
         required: true
         default: naming-convention
         type: choice
-        options: [naming-convention, archi-vide, micro-optimiz, svelte-strict]
+        options: [naming-convention, archi-vide, micro-optimiz, svelte-strict, pocketbase-go]
       trials:
         description: "Trials par cas"
         required: true

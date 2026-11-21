@@ -1,0 +1,33 @@
+{
+  "auth": "users",
+  "collections": {
+    "posts": {
+      "seed": { "title": "t", "owner": "@owner" },
+      "create": { "title": "n", "owner": "@actor" },
+      "update": { "title": "u" },
+      "probes": {
+        "spoofCreate": { "as": "other", "action": "create", "data": { "title": "s", "owner": "@owner" }, "expect": 400 },
+        "ownerChange": { "as": "owner", "action": "update", "data": { "owner": "@other" }, "expect": 404 }
+      },
+      "expect": {
+        "list": { "anon": "empty", "owner": "has", "other": "empty" },
+        "view": { "anon": 404, "owner": 200, "other": 404 },
+        "create": { "anon": 400, "owner": 200, "other": 200 },
+        "update": { "anon": 404, "owner": 200, "other": 404 },
+        "delete": { "anon": 404, "owner": 204, "other": 404 }
+      }
+    },
+    "users": {
+      "self": true,
+      "create": { "email": "@unique" },
+      "update": { "name": "renamed" },
+      "expect": {
+        "list": { "anon": "empty", "owner": "has", "other": "empty" },
+        "view": { "anon": 404, "owner": 200, "other": 404 },
+        "create": { "anon": 200, "owner": 200, "other": 200 },
+        "update": { "anon": 404, "owner": 200, "other": 404 },
+        "delete": { "anon": 404, "owner": 204, "other": 404 }
+      }
+    }
+  }
+}

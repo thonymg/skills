@@ -193,6 +193,10 @@ my %EXEMPT_FN = map { $_ => 1 } qw(
 # Noms imposés par Rails : strong params (`order_params`), helpers d'auth
 # (`current_user`, fourni par Devise), conversions surchargées (`to_param`).
 my $RB_FRAMEWORK_FN = qr/^(?:current_\w+|to_\w+|\w+_params)$/;
+# Noms imposés par le langage Go ou par une interface de la stdlib : le dev ne
+# les choisit pas (go test, fmt.Stringer, error, json.Marshaler, http.Handler,
+# sort.Interface, io.*, sql.Scanner/driver.Valuer, sync.Locker).
+my $GO_IMPOSED_FN = qr/^(?:main|init|Test\w*|Benchmark\w*|Example\w*|Fuzz\w*|String|GoString|Format|Error|Unwrap|Is|As|MarshalJSON|UnmarshalJSON|MarshalText|UnmarshalText|MarshalBinary|UnmarshalBinary|Scan|Value|ServeHTTP|Len|Less|Swap|Read|Write|Close|Seek|ReadFrom|WriteTo|Lock|Unlock)$/;
 # Fabriques de composants : `const Button = defineComponent(…)` est un composant
 # même dans un .ts (test Vue, story), pas une variable.
 my $COMPONENT_FACTORY = qr/^(?:defineComponent|defineAsyncComponent|forwardRef|React\.forwardRef|
@@ -271,11 +275,13 @@ sub check_identifier {
     my @tok  = tokens($name);
     return unless @tok;
     my $exempt_fn = $EXEMPT_FN{lc $bare} || $bare =~ /^test_/i || $name =~ /^__\w+__$/
-                 || ($lang eq 'rb' && $bare =~ $RB_FRAMEWORK_FN);
+                 || ($lang eq 'rb' && $bare =~ $RB_FRAMEWORK_FN)
+                 || ($lang eq 'go' && $bare =~ $GO_IMPOSED_FN);
 
     # ── 1. CASSE ─────────────────────────────────────────────────────────────
     my $want;
-    if ($kind =~ /^(class|type|component)$/) { $want = 'PascalCase' }
+    if ($lang eq 'go') { $want = 'MixedCaps' }
+    elsif ($kind =~ /^(class|type|component)$/) { $want = 'PascalCase' }
     elsif ($kind eq 'const' && is_scream($name)) { $want = undef }
     elsif ($lang eq 'py' || $lang eq 'rb') {
         $want = ($kind eq 'const') ? 'SCREAMING_SNAKE_CASE' : 'snake_case';
@@ -284,7 +290,8 @@ sub check_identifier {
     # SCREAMING sur let/var est reporté par la règle SCREAMING — pas deux fois
     my $screaming_var = ($kind eq 'variable' && $lang !~ /^(py|rb)$/ && is_scream($bare));
     if (defined $want && !$screaming_var) {
-        my $ok = $want eq 'PascalCase'           ? is_pascal($bare)
+        my $ok = $want eq 'MixedCaps'            ? (is_camel($bare) || is_pascal($bare))
+               : $want eq 'PascalCase'           ? is_pascal($bare)
                : $want eq 'snake_case'           ? is_snake($bare)
                : $want eq 'SCREAMING_SNAKE_CASE' ? (is_scream($bare) || is_snake($bare))
                :                                   is_camel($bare);
@@ -526,6 +533,46 @@ sub extract_svelte {
     return @ids;
 }
 
+# Go : identifiants de niveau package (func, méthodes, types, var, const, y
+# compris dans les blocs `var (…)`/`const (…)`/`type (…)`). Les déclarations
+# courtes `x := …` dans les fonctions sont ignorées (err, ok, i : idiomes Go).
+sub extract_go {
+    my ($file, $lines) = @_;
+    my @ids;
+    my ($in_comment, $lineno, $depth, $block) = (0, 0, 0, '');
+    my %kind_of = (var => 'variable', const => 'const', type => 'type');
+    for my $raw (@$lines) {
+        $lineno++;
+        my $l = $raw;
+        if ($in_comment) { $in_comment = 0 if $l =~ m{\*/}; next }
+        if ($l =~ m{^\s*/\*} && $l !~ m{\*/}) { $in_comment = 1; next }
+        next if $l =~ m{^\s*//} || $l =~ /^\s*$/;
+        (my $code = $l) =~ s{\s//.*$}{};
+        $code =~ s/"(?:[^"\\]|\\.)*"|`[^`]*`/""/g;   # les accolades des chaînes ne comptent pas
+        if ($depth == 0) {
+            my @names;
+            my $kind;
+            if ($block) {
+                if ($code =~ /^\s*\)/) { $block = '' }
+                elsif ($code =~ /^\s*([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)/) { @names = split /\s*,\s*/, $1; $kind = $kind_of{$block} }
+            }
+            elsif ($code =~ /^func\s*\([^)]*\)\s*([A-Za-z_]\w*)\s*[\[(]/) { @names = ($1); $kind = 'method' }
+            elsif ($code =~ /^func\s+([A-Za-z_]\w*)\s*[\[(]/)             { @names = ($1); $kind = 'function' }
+            elsif ($code =~ /^(var|const|type)\s*\(\s*$/)                   { $block = $1 }
+            elsif ($code =~ /^type\s+([A-Za-z_]\w*)/)                        { @names = ($1); $kind = 'type' }
+            elsif ($code =~ /^(var|const)\s+([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)/) { @names = split /\s*,\s*/, $2; $kind = $kind_of{$1} }
+            for my $n (grep { $_ ne '_' } @names) {
+                push @ids, { name => $n, line => $lineno, kind => $kind, lang => 'go' };
+            }
+        }
+        my $open  = () = $code =~ /\{/g;
+        my $close = () = $code =~ /\}/g;
+        $depth += $open - $close;
+        $depth = 0 if $depth < 0;
+    }
+    return @ids;
+}
+
 sub extract_py {
     my ($file, $lines) = @_;
     my @ids; my $lineno = 0;
@@ -606,6 +653,11 @@ sub check_filename {
         add('casing-files', 'CASING', 'error', $path, 0, $stem,
             "attendu en kebab-case") unless is_kebab($s);
     }
+    elsif ($path =~ /\.go$/) {
+        return if $stem =~ /^[0-9]{8,}_[a-z0-9_]+$/;   # migration horodatée (PocketBase, goose…), comme Rails
+        add('casing-files', 'CASING', 'error', $path, 0, $stem,
+            "attendu en snake_case (convention Go)") unless is_snake($stem);
+    }
     elsif ($path =~ /\.(py|rb|dart)$/) {
         return if $stem =~ /^(__init__|__main__|conftest|Gemfile|Rakefile)$/;
         return if $path =~ /\.rb$/ && $stem =~ /^[0-9]{8,}_[a-z0-9_]+$/;   # migration Rails
@@ -632,7 +684,7 @@ for my $t (@TARGETS) {
         File::Find::find({ wanted => sub {
             if (-d $_) { $File::Find::prune = 1 if $_ =~ $SKIP_DIR; return }
             push @FILES, $File::Find::name
-                if -f $_ && /\.(ts|tsx|js|jsx|mjs|cjs|svelte|py|rb|dart|java|kt|cs|css|scss|sass|less)$/;
+                if -f $_ && /\.(ts|tsx|js|jsx|mjs|cjs|svelte|go|py|rb|dart|java|kt|cs|css|scss|sass|less)$/;
         }, no_chdir => 0 }, $t);
     }
 }
@@ -640,7 +692,7 @@ for my $t (@TARGETS) {
 
 for my $file (sort @FILES) {
     check_filename($file);
-    next unless $file =~ /\.(ts|tsx|js|jsx|mjs|cjs|svelte|py|rb)$/;
+    next unless $file =~ /\.(ts|tsx|js|jsx|mjs|cjs|svelte|go|py|rb)$/;
     open my $fh, '<', $file or next;
     my @lines = <$fh>;
     close $fh;
@@ -648,6 +700,7 @@ for my $file (sort @FILES) {
     my @ids = $file =~ /\.(py)$/      ? extract_py($file, \@lines)
             : $file =~ /\.(rb)$/      ? extract_rb($file, \@lines)
             : $file =~ /\.svelte$/    ? extract_svelte($file, \@lines)
+            : $file =~ /\.go$/        ? extract_go($file, \@lines)
             :                           extract_ts($file, \@lines, ($file =~ /\.(tsx|jsx)$/ ? 1 : 0));
     # Dédup : un identifiant déclaré une fois = un finding, pas un par occurrence
     my %seen;

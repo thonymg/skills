@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "bash tests/run-linter-tests.sh && bash tests/run-fix-root-tests.sh && bash tests/run-svelte-strict-tests.sh && python3 tests/check-skills.py",
+    "test": "bash tests/run-linter-tests.sh && bash tests/run-fix-root-tests.sh && bash tests/run-svelte-strict-tests.sh && bash tests/run-pocketbase-go-tests.sh && python3 tests/check-skills.py",
     "lint:naming": "bash skills/naming-convention/linter/lint.sh",
     "evals": "python3 evals/run-evals.py"
   },

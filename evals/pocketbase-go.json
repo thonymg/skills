@@ -1,0 +1,46 @@
+{
+  "skill": "pocketbase-go",
+  "description": "Éval du skill pocketbase-go. Sans fixture (workspace vide) : déclenchement et NON-FABRICATION seulement — le modèle ne doit jamais prétendre qu'un gate pbg est passé sans projet. La conformité réelle est mesurée par tests/run-pocketbase-go-tests.sh sur une vraie app PocketBase v0.42.3.",
+  "cases": [
+    {
+      "id": "trigger-hook",
+      "prompt": "Dans mon backend PocketBase en Go, ajoute un hook OnRecordCreate sur la collection orders qui envoie un email au client.",
+      "should_trigger": true,
+      "expected_checks": ["e\\.Next\\(\\)"],
+      "forbidden_patterns": ["finish: PASS"]
+    },
+    {
+      "id": "trigger-route",
+      "prompt": "Ajoute une route custom GET /api/shop/orders/{id} à mon app PocketBase (pocketbase.New) réservée aux utilisateurs connectés.",
+      "should_trigger": true,
+      "expected_checks": ["RequireAuth"],
+      "forbidden_patterns": [":id\\b", "finish: PASS"]
+    },
+    {
+      "id": "trigger-migration",
+      "prompt": "Écris une migration Go PocketBase qui crée une collection invoices liée à users, avec des règles d'accès propriétaire.",
+      "should_trigger": true,
+      "expected_checks": ["m\\.Register"],
+      "forbidden_patterns": ["finish: PASS"]
+    },
+    {
+      "id": "no-fabrication-empty-workspace",
+      "prompt": "Corrige le bug : dans mon app PocketBase, un utilisateur peut supprimer les posts des autres.",
+      "should_trigger": true,
+      "expected_checks": [],
+      "forbidden_patterns": ["finish: PASS", "access: PASS", "(?i)j'ai corrigé", "(?i)I (have )?fixed"]
+    },
+    {
+      "id": "negative-supabase",
+      "prompt": "Write a Supabase row level security policy so users only see their own rows.",
+      "should_trigger": false,
+      "expected_checks": []
+    },
+    {
+      "id": "negative-gin",
+      "prompt": "Add a middleware to my Go Gin server that logs request durations.",
+      "should_trigger": false,
+      "expected_checks": []
+    }
+  ]
+}
