@@ -9,7 +9,9 @@
 # Vocabulaire : lu au runtime depuis ../vocabulary/*.md (source unique de vérité)
 # + vocabulary/custom.md du projet cible (catégorisé par section).
 #
-# Zéro dépendance : Perl 5 de base, lecture seule, un seul processus.
+# Zéro dépendance : Perl 5 de base (JSON::PP fait partie du core depuis 5.14),
+# lecture seule, un seul processus — aucun sous-processus. Ce qui demande git
+# (`--since`) vit dans lint.sh, qui fabrique une baseline et la passe ici.
 #
 # Attribution du gain vs l'ancien moteur bash (5 scripts, ligne par ligne) :
 # l'essentiel vient du principe ci-dessus (une passe par fichier, jamais par
@@ -21,42 +23,59 @@
 # Ne pas porter ce gain au crédit du langage : c'est l'architecture qui compte,
 # le langage est un détail d'implémentation.
 #
-# Usage: nc-lint.pl [TARGET] [--only CHECK] [--json] [--summary] [--no-color]
-# Exit : 0 si aucune erreur, 1 sinon.
+# Usage: nc-lint.pl [TARGET...] [--only CHECK] [--json] [--summary] [--no-color]
+#                   [--baseline FILE.json]
+# Exit : 0 si aucune erreur, 1 sinon, 2 si usage invalide (cible introuvable,
+#        check inconnu, baseline illisible) — jamais un faux « ✅ ».
 
 use strict;
 use warnings;
 use File::Basename qw(basename dirname);
 use File::Find ();
 use Cwd qw(abs_path);
+use JSON::PP ();
 
 my $SCRIPT_DIR = dirname(abs_path($0));
 my $SKILL_DIR  = abs_path("$SCRIPT_DIR/..");
+
+my @CHECKS = qw(casing-files casing-identifiers prefixes forbidden class-suffixes
+                standalone-suffixes vocabulary);
+
+sub usage_error { print STDERR "nc-lint: $_[0]\n"; exit 2 }
 
 # ─── Arguments ───────────────────────────────────────────────────────────────
 # Plusieurs cibles sont acceptées (fichiers et/ou dossiers) — nécessaire pour
 # qu'un hook pre-commit puisse passer juste les fichiers stagés (`pass_filenames:
 # true`) au lieu de scanner tout le repo à chaque commit.
 my @TARGETS;
-my ($ONLY, $JSON, $SUMMARY, $NOCOLOR) = ('', 0, 0, 0);
+my ($ONLY, $JSON, $SUMMARY, $NOCOLOR, $BASELINE) = ('', 0, 0, 0, '');
 while (@ARGV) {
     my $a = shift @ARGV;
-    if    ($a eq '--only')     { $ONLY = shift @ARGV // '' }
+    if    ($a eq '--only')     { $ONLY = shift @ARGV // usage_error('--only demande un nom de check') }
+    elsif ($a eq '--baseline') { $BASELINE = shift @ARGV // usage_error('--baseline demande un fichier JSON') }
     elsif ($a eq '--json')     { $JSON = 1; $NOCOLOR = 1 }
     elsif ($a eq '--summary')  { $SUMMARY = 1 }
     elsif ($a eq '--no-color') { $NOCOLOR = 1 }
-    elsif ($a =~ /^-/)         { die "Option inconnue : $a\n" }
+    elsif ($a =~ /^-/)         { usage_error("option inconnue : $a") }
     else                       { push @TARGETS, $a }
 }
 @TARGETS = ('.') unless @TARGETS;
-my $TARGET = $TARGETS[0];   # affichage / rétro-compat des usages mono-cible
+# Un check mal tapé ou une cible introuvable filtrait tout en silence → « ✅ ».
+usage_error("check inconnu : '$ONLY' (attendu : @CHECKS)")
+    if $ONLY && !grep { $_ eq $ONLY } @CHECKS;
+for my $t (@TARGETS) { usage_error("cible introuvable : $t") unless -e $t }
 my $USE_COLOR = (!$NOCOLOR && -t STDOUT) ? 1 : 0;
 sub c { my ($code, $s) = @_; $USE_COLOR ? "\e[${code}m$s\e[0m" : $s }
 
 # ─── Vocabulaire ─────────────────────────────────────────────────────────────
 my %V = map { $_ => {} } qw(PREFIX ENTITY COLLECTION ATTR INFRA UI);
+my %FILE_CASING;   # extension => { kebab|camel|pascal|snake => 1 } — casses ajoutées par custom.md
 
 sub add_word { my ($cat, $w) = @_; $V{$cat}{lc $w} = 1 if $cat && length $w }
+
+my %CASING_ALIAS = (camelcase => 'camel', camel => 'camel', pascalcase => 'pascal', pascal => 'pascal',
+                    'kebab-case' => 'kebab', kebabcase => 'kebab', kebab => 'kebab',
+                    snake_case => 'snake', snakecase => 'snake', snake => 'snake');
 
 sub parse_vocab_file {
     my ($file, $default_cat, $section_map) = @_;
@@ -68,6 +87,14 @@ sub parse_vocab_file {
             $cat = $default_cat;
             for my $k (keys %$section_map) {
                 $cat = $section_map->{$k} if $section =~ /\Q$k\E/i;
+            }
+            next;
+        }
+        # Section « Custom File Casing » : | `ts` | `camelCase` |
+        if (defined $cat && $cat eq 'FILE_CASING') {
+            if ($line =~ /^\|\s*`\.?([A-Za-z0-9]+)`\s*\|\s*`?([A-Za-z_-]+)`?/) {
+                my $casing = $CASING_ALIAS{lc $2};
+                $FILE_CASING{lc $1}{$casing} = 1 if $casing;
             }
             next;
         }
@@ -91,6 +118,7 @@ my $custom_map = {
     'Custom Attribute Suffixes'      => 'ATTR',
     'Custom Infrastructure Suffixes' => 'INFRA',
     'Custom UI Suffixes'             => 'UI',
+    'Custom File Casing'             => 'FILE_CASING',
 };
 sub find_custom_vocab {
     my ($root) = @_;
@@ -145,6 +173,12 @@ my %NUM_OK      = map { $_ => 1 } qw(base64 sha1 sha256 sha512 md5 utf8 utf16 oa
 my $NUM_OK_PATTERN = qr/^(?:h[1-6]|col\d+|row\d+|md\d+|lg\d+|sm\d+|xl\d+|xs\d+|
                           px\d+|mt\d+|mb\d+|ml\d+|mr\d+|mx\d+|my\d+|
                           pt\d+|pb\d+|pl\d+|pr\d+|px\d+|py\d+|z\d+)$/ix;
+# Mots structurels admis par la règle VOCAB? sans être du vocabulaire métier :
+# les connecteurs des patterns 5 et 8, et les unités que la règle UNIT demande
+# d'écrire (`durationInSeconds`).
+my %STRUCTURAL  = map { $_ => 1 } qw(to from in by per of
+                                     ms millis milliseconds seconds secs minutes mins hours days
+                                     weeks months years px bytes kb mb gb percent);
 my %EXEMPT_FN = map { $_ => 1 } qw(
     constructor tostring valueof tojson tolocalestring main
     render getderivedstatefromprops componentdidmount componentdidupdate
@@ -156,6 +190,13 @@ my %EXEMPT_FN = map { $_ => 1 } qw(
     initialize index show new edit destroy up down change perform call
     to_s to_h to_a to_json each method_missing respond_to_missing
 );
+# Noms imposés par Rails : strong params (`order_params`), helpers d'auth
+# (`current_user`, fourni par Devise), conversions surchargées (`to_param`).
+my $RB_FRAMEWORK_FN = qr/^(?:current_\w+|to_\w+|\w+_params)$/;
+# Fabriques de composants : `const Button = defineComponent(…)` est un composant
+# même dans un .ts (test Vue, story), pas une variable.
+my $COMPONENT_FACTORY = qr/^(?:defineComponent|defineAsyncComponent|forwardRef|React\.forwardRef|
+                             memo|React\.memo|styled\.|styled\()/x;
 my %KEYWORDS = map { $_ => 1 } qw(if else for while switch case catch try return throw
     typeof instanceof new delete void yield await super this import export default
     do in of let const var function class extends implements with as from);
@@ -172,7 +213,12 @@ sub tokens {
     for my $p (@parts) {
         $p =~ s/([a-z0-9])([A-Z])/$1 $2/g;
         $p =~ s/([A-Z]+)([A-Z][a-z])/$1 $2/g;
-        push @out, grep { length } split /\s+/, $p;
+        for my $t (grep { length } split /\s+/, $p) {
+            # Chiffres en fin de mot séparés (`Data2` → Data, 2) pour que VAGUE
+            # et VOCAB? voient le mot — sauf les noms techniques (`s3`, `sha256`).
+            if (!$NUM_OK{lc $t} && $t =~ /^([A-Za-z]+)([0-9]+)$/) { push @out, $1, $2 }
+            else                                                  { push @out, $t }
+        }
     }
     return @out;
 }
@@ -182,6 +228,15 @@ sub is_entity_like {
     return 1 if in_vocab($tok, 'ENTITY', 'COLLECTION');
     return 1 if $tok =~ /es$/i && in_vocab(substr($tok, 0, -2), 'ENTITY', 'COLLECTION');
     return 1 if $tok =~ /s$/i  && in_vocab(substr($tok, 0, -1), 'ENTITY', 'COLLECTION');
+    0;
+}
+sub is_known_token {
+    my ($tok) = @_;
+    return 1 if $tok =~ /^[0-9]+$/ || length($tok) == 1;
+    return 1 if $STRUCTURAL{lc $tok} || $NUM_OK{lc $tok} || $VAGUE{lc $tok};
+    for my $t ($tok, ($tok =~ /es$/i ? substr($tok, 0, -2) : ()), ($tok =~ /s$/i ? substr($tok, 0, -1) : ())) {
+        return 1 if in_vocab($t, keys %V);
+    }
     0;
 }
 
@@ -201,9 +256,12 @@ sub add {
                line => $line, name => $name, msg => $msg };
 }
 
+my $ADD_CUSTOM = 'propose l\'ajout dans vocabulary/custom.md (après confirmation de l\'utilisateur) si le mot est voulu';
+
 # ─── Vérification d'un identifiant déclaré ───────────────────────────────────
-# $id = { name, line, kind, lang }
+# $id = { name, line, kind, lang, base? }
 #   kind ∈ function method component class type accessor property variable const
+#   base = classe parente déclarée, si l'extracteur l'a vue
 sub check_identifier {
     my ($file, $id) = @_;
     my ($name, $line, $kind, $lang) = @$id{qw(name line kind lang)};
@@ -212,7 +270,8 @@ sub check_identifier {
     my $bare = $name; $bare =~ s/^_+//; $bare =~ s/[?!]$//;
     my @tok  = tokens($name);
     return unless @tok;
-    my $exempt_fn = $EXEMPT_FN{lc $bare} || $bare =~ /^test_/i || $name =~ /^__\w+__$/;
+    my $exempt_fn = $EXEMPT_FN{lc $bare} || $bare =~ /^test_/i || $name =~ /^__\w+__$/
+                 || ($lang eq 'rb' && $bare =~ $RB_FRAMEWORK_FN);
 
     # ── 1. CASSE ─────────────────────────────────────────────────────────────
     my $want;
@@ -259,10 +318,11 @@ sub check_identifier {
     }
 
     # ── 5. PRÉFIXE + VERBE COMPOSÉ (fonctions et méthodes) ───────────────────
-    if ($kind =~ /^(function|method)$/ && !$exempt_fn) {
+    my $is_fn = ($kind =~ /^(function|method)$/);
+    if ($is_fn && !$exempt_fn) {
         unless ($lang eq 'rb' && $name =~ /\?$/) {   # prédicat Ruby = préfixe verify
             add('prefixes', 'PREFIX', 'error', $file, $line, $name,
-                'ne commence pas par un préfixe approuvé — ajoute-le dans vocabulary/custom.md si intentionnel')
+                "ne commence pas par un préfixe approuvé — $ADD_CUSTOM")
                 unless in_vocab($tok[0], 'PREFIX');
         }
         add('prefixes', 'COMPOUND', 'error', $file, $line, $name,
@@ -277,17 +337,21 @@ sub check_identifier {
     # usage courant et légitime, pas une violation — mesuré : 71 warnings sur
     # un projet réel de 150 fichiers, presque aucun vrai. Le pattern 7 du
     # SKILL.md reste un guide de génération pour le LLM, pas une règle d'audit.
+    my ($entity_warned, $suffix_err) = (0, 0);
     if ($kind eq 'class' || $kind eq 'component') {
         my $last = $tok[-1];
         if ($kind eq 'class') {
             my $ok = in_vocab($last, 'INFRA', 'UI', 'COLLECTION')
                   || $bare =~ /Error$/
+                  || ($id->{base} // '') =~ /(?:Error|Exception)$/   # classe d'exception
                   || is_entity_like($bare)
                   || is_entity_like($last)
                   || $STANDALONE{lc $bare};   # reporté par STANDALONE — pas deux fois
-            add('class-suffixes', 'SUFFIX', 'error', $file, $line, $name,
-                'suffixe non reconnu — attend un suffixe infra/UI ou une entité du vocabulaire')
-                unless $ok;
+            unless ($ok) {
+                $suffix_err = 1;
+                add('class-suffixes', 'SUFFIX', 'error', $file, $line, $name,
+                    'suffixe non reconnu — attend un suffixe infra/UI ou une entité du vocabulaire');
+            }
         }
         # Suffixe structurel seul, ou entité inconnue devant lui — reste vérifié
         # pour les composants : `Manager` ou `DataManager` n'est légitime dans
@@ -298,10 +362,35 @@ sub check_identifier {
         }
         elsif (@tok > 1 && $STANDALONE{lc $last} && !$has_vague) {
             my $head = join '', @tok[0 .. $#tok - 1];
-            add('standalone-suffixes', 'ENTITY?', 'warning', $file, $line, $name,
-                "'$head' n'est pas une entité du vocabulaire — ajoute-le dans custom.md si intentionnel")
-                unless is_entity_like($head) || is_entity_like($tok[-2]);
+            unless (is_entity_like($head) || is_entity_like($tok[-2])) {
+                $entity_warned = 1;
+                add('standalone-suffixes', 'ENTITY?', 'warning', $file, $line, $name,
+                    "'$head' n'est pas une entité du vocabulaire — $ADD_CUSTOM");
+            }
         }
+    }
+
+    # ── 7. VOCABULAIRE FERMÉ (mots du milieu) → warning ──────────────────────
+    # Le SKILL déclare invalide tout mot hors vocabulaire ; PREFIX et SUFFIX ne
+    # regardent que le premier et le dernier mot. VOCAB? couvre le reste en
+    # warning : un mot de domaine légitime ne doit pas bloquer la CI, mais ne
+    # doit plus passer en « ✅ » silencieux non plus. Aucune tolérance par type de
+    # fichier ni par mot courant : sur un projet à refactoriser, ce bruit EST le
+    # travail à faire.
+    # Pas de doublon : un mot déjà signalé par une autre règle (COMPOUND, STANDALONE,
+    # ENTITY?, SUFFIX, PREFIX) n'est pas répété ici — il reste signalé par celle-là.
+    return if $exempt_fn || $entity_warned;
+    # Classe d'exception : le SKILL accepte tout nom (« any class ending in Error »).
+    return if $bare =~ /Error$/;
+    my @check = $is_fn ? @tok[1 .. $#tok] : @tok;
+    pop @check if $suffix_err;
+    my @unknown = grep { !is_known_token($_)
+                         && !$STANDALONE{lc $_}
+                         && lc($_) ne 'and' && lc($_) ne 'or' } @check;
+    if (@unknown) {
+        my %u; @unknown = grep { !$u{lc $_}++ } @unknown;
+        add('vocabulary', 'VOCAB?', 'warning', $file, $line, $name,
+            'hors vocabulaire : ' . join(', ', @unknown) . " — $ADD_CUSTOM");
     }
 }
 
@@ -327,8 +416,8 @@ sub extract_ts {
         next if $l =~ /^\s*$/;
 
         # class / interface / type / enum
-        if ($l =~ /^\s*(?:$TS_MODS)*class\s+([A-Za-z_]\w*)/) {
-            push @ids, { name => $1, line => $lineno, kind => 'class', lang => 'ts' }; next;
+        if ($l =~ /^\s*(?:$TS_MODS)*class\s+([A-Za-z_]\w*)(?:\s*<[^>]*>)?(?:\s+extends\s+([\w.]+))?/) {
+            push @ids, { name => $1, line => $lineno, kind => 'class', lang => 'ts', base => $2 }; next;
         }
         if ($l =~ /^\s*(?:$TS_MODS)*(?:interface|type|enum)\s+([A-Za-z_]\w*)/) {
             push @ids, { name => $1, line => $lineno, kind => 'type', lang => 'ts' }; next;
@@ -346,9 +435,11 @@ sub extract_ts {
             next if $rhs =~ /^(?:await\s+)?(?:require|import)\s*\(/;
             my $is_fn = ($rhs =~ /^(?:async\s+)?(?:function\b|\([^()]*\)\s*(?::[^=]*)?=>|[A-Za-z_]\w*\s*=>|<[^>]*>\s*\()/) ? 1 : 0;
             # Dans un fichier JSX, un const PascalCase est un composant — y compris
-            # quand la liste de paramètres est sur plusieurs lignes (`= ({` … `}) => {`)
-            my $kind = ($is_jsx && $n =~ /^[A-Z]/) ? 'component'
-                     : $is_fn                      ? 'function'
+            # quand la liste de paramètres est sur plusieurs lignes (`= ({` … `}) => {`).
+            # Partout, un const PascalCase créé par une fabrique de composants l'est aussi.
+            my $is_component = $n =~ /^[A-Z]/ && ($is_jsx || $rhs =~ $COMPONENT_FACTORY);
+            my $kind = $is_component ? 'component'
+                     : $is_fn        ? 'function'
                      : ($decl eq 'const' ? 'const' : 'variable');
             push @ids, { name => $n, line => $lineno, kind => $kind, lang => 'ts' }; next;
         }
@@ -394,15 +485,22 @@ sub extract_ts {
 sub extract_py {
     my ($file, $lines) = @_;
     my @ids; my $lineno = 0;
+    my $decorator = '';   # dernier décorateur vu, consommé par le `def` suivant
     for my $l (@$lines) {
         $lineno++;
         next if $l =~ /^\s*#/ || $l =~ /^\s*$/;
+        if ($l =~ /^\s*@([\w.]+)/) { $decorator = $1; next }
         if ($l =~ /^(\s*)(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(/) {
-            push @ids, { name => $2, line => $lineno,
-                         kind => (length($1) ? 'method' : 'function'), lang => 'py' }; next;
+            my ($indent, $n) = ($1, $2);   # avant tout autre match, qui écraserait $1/$2
+            # @property / @cached_property / @x.setter : un attribut, nommé comme tel
+            my $kind = $decorator =~ /(?:^|\.)(?:property|cached_property|setter|getter|deleter)$/ ? 'property'
+                     : length($indent) ? 'method' : 'function';
+            $decorator = '';
+            push @ids, { name => $n, line => $lineno, kind => $kind, lang => 'py' }; next;
         }
-        if ($l =~ /^\s*class\s+([A-Za-z_]\w*)/) {
-            push @ids, { name => $1, line => $lineno, kind => 'class', lang => 'py' }; next;
+        $decorator = '';
+        if ($l =~ /^\s*class\s+([A-Za-z_]\w*)\s*(?:\(\s*([\w.]+))?/) {
+            push @ids, { name => $1, line => $lineno, kind => 'class', lang => 'py', base => $2 }; next;
         }
         if ($l =~ /^([A-Za-z_]\w*)\s*(?::[^=]+)?=\s*[^=]/) {
             my $n = $1;
@@ -423,10 +521,10 @@ sub extract_rb {
         if ($l =~ /^\s*def\s+(?:self\.)?([A-Za-z_]\w*[?!]?)/) {
             push @ids, { name => $1, line => $lineno, kind => 'method', lang => 'rb' }; next;
         }
-        if ($l =~ /^\s*(?:class|module)\s+([A-Z][\w:]*)/) {
-            my $n = $1; $n =~ s/.*:://;
+        if ($l =~ /^\s*(?:class|module)\s+([A-Z][\w:]*)(?:\s*<\s*([\w:]+))?/) {
+            my ($n, $base) = ($1, $2); $n =~ s/.*:://;
             next if $n =~ /^Application[A-Z]/;
-            push @ids, { name => $n, line => $lineno, kind => 'class', lang => 'rb' }; next;
+            push @ids, { name => $n, line => $lineno, kind => 'class', lang => 'rb', base => $base }; next;
         }
         if ($l =~ /^\s*([A-Z][A-Z0-9_]*)\s*=\s*[^=]/) {
             push @ids, { name => $1, line => $lineno, kind => 'const', lang => 'rb' }; next;
@@ -439,14 +537,25 @@ sub extract_rb {
 }
 
 # ─── Casse des noms de fichiers ──────────────────────────────────────────────
+my %CASING_TEST = (kebab => \&is_kebab, camel => \&is_camel, pascal => \&is_pascal, snake => \&is_snake);
+
 sub check_filename {
     my ($path) = @_;
     my $base = basename($path);
     return if $base =~ /^\./;                       # dotfiles
     return if $base =~ /\.module\./;                # CSS Modules, *.module.css/scss
     return if $base =~ /\.d\.ts$/;                  # déclarations TS
+    # Routage par fichiers : `[id].tsx`, `[...slug].tsx` (Next/Nuxt), `+page.ts`
+    # (SvelteKit), `_app.tsx`/`_document.tsx` (Next) — noms imposés par le framework.
+    return if $base =~ /^[\[+]/;
     my ($stem) = $base =~ /^([^.]+)/;
     return unless defined $stem && length $stem;
+    return if $stem =~ /^_(?:app|document|error)$/;
+    my ($ext) = $base =~ /\.([A-Za-z0-9]+)$/;
+    # Casses ajoutées par le projet (`## Custom File Casing` dans custom.md)
+    for my $casing (keys %{ $FILE_CASING{lc($ext // '')} // {} }) {
+        return if $CASING_TEST{$casing}->($stem);
+    }
 
     if ($path =~ /\.(css|scss|sass|less)$/) {
         (my $s = $stem) =~ s/^_//;                  # partiel Sass : le _ est obligatoire
@@ -465,7 +574,7 @@ sub check_filename {
     }
     elsif ($path =~ /\.(ts|tsx|js|jsx|mjs|cjs)$/) {
         add('casing-files', 'CASING', 'error', $path, 0, $stem,
-            "attendu en kebab-case (module) ou PascalCase (composant/classe)")
+            "attendu en kebab-case (module) ou PascalCase (composant/classe) — une casse propre au projet se déclare dans custom.md")
             unless is_kebab($stem) || is_pascal($stem);
     }
 }
@@ -503,23 +612,48 @@ for my $file (sort @FILES) {
     }
 }
 
+# ─── Baseline : ne garder que ce qui est NOUVEAU ─────────────────────────────
+# Clé indépendante du numéro de ligne (une insertion décale tout le reste) :
+# règle + identifiant + nom de fichier. `lint.sh --since <ref>` fabrique la
+# baseline depuis git ; ici on se contente de la lire.
+sub finding_key { my ($f) = @_; join "\0", $f->{rule}, $f->{name}, basename($f->{file}) }
+if ($BASELINE) {
+    open my $bh, '<', $BASELINE or usage_error("baseline illisible : $BASELINE");
+    my $raw = do { local $/; <$bh> };
+    close $bh;
+    my $base = eval { JSON::PP->new->decode($raw) } or usage_error("baseline invalide (JSON attendu de --json) : $BASELINE");
+    my %known;
+    $known{ finding_key($_) }++ for @{ $base->{findings} // [] };
+    # Multiset : 2 occurrences dans la baseline masquent 2 findings identiques, pas un 3e.
+    @F = grep { my $k = finding_key($_); $known{$k} ? ($known{$k}--, 0) : 1 } @F;
+}
+
 # ─── Rapport ─────────────────────────────────────────────────────────────────
-my @CHECKS = qw(casing-files casing-identifiers prefixes forbidden class-suffixes standalone-suffixes);
 my %COUNT = map { $_ => { errors => 0, warnings => 0 } } @CHECKS;
 $COUNT{ $_->{cat} }{ $_->{sev} eq 'error' ? 'errors' : 'warnings' }++ for @F;
 my $ERRORS   = 0; $ERRORS   += $COUNT{$_}{errors}   for @CHECKS;
 my $WARNINGS = 0; $WARNINGS += $COUNT{$_}{warnings} for @CHECKS;
+my @SORTED = sort { $a->{file} cmp $b->{file} || $a->{line} <=> $b->{line} || $a->{rule} cmp $b->{rule} } @F;
 
 if ($JSON) {
-    my $checks = join ',', map { "\"$_\":{\"errors\":$COUNT{$_}{errors},\"warnings\":$COUNT{$_}{warnings}}" } @CHECKS;
-    my $t = @TARGETS == 1 ? $TARGETS[0] : scalar(@TARGETS) . " cibles";
-    $t =~ s/"/\\"/g;
-    print "{\"target\":\"$t\",\"files\":" . scalar(@FILES) . ",\"checks\":{$checks},\"broken\":[],\"errors\":$ERRORS,\"warnings\":$WARNINGS}\n";
+    # Les erreurs elles-mêmes, pas seulement les compteurs : l'agent doit savoir
+    # QUOI corriger sans relancer le linter.
+    my $out = {
+        target   => (@TARGETS == 1 ? $TARGETS[0] : scalar(@TARGETS) . " cibles"),
+        files    => scalar(@FILES),
+        checks   => { map { $_ => { errors => $COUNT{$_}{errors} + 0, warnings => $COUNT{$_}{warnings} + 0 } } @CHECKS },
+        errors   => $ERRORS + 0,
+        warnings => $WARNINGS + 0,
+        findings => [ map { { check => $_->{cat}, rule => $_->{rule}, severity => $_->{sev},
+                              file => $_->{file}, line => $_->{line} + 0, name => $_->{name},
+                              message => $_->{msg} } } @SORTED ],
+    };
+    print JSON::PP->new->canonical->encode($out), "\n";
     exit($ERRORS > 0 ? 1 : 0);
 }
 
 unless ($SUMMARY) {
-    for my $f (sort { $a->{file} cmp $b->{file} || $a->{line} <=> $b->{line} } @F) {
+    for my $f (@SORTED) {
         my $loc = $f->{line} ? "$f->{file}:$f->{line}" : $f->{file};
         my $tag = $f->{sev} eq 'error' ? c('0;31', "❌ " . sprintf('%-10s', $f->{rule}))
                                        : c('0;33', "⚠️  " . sprintf('%-10s', $f->{rule}));

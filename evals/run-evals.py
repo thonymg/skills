@@ -18,6 +18,7 @@ Usage :
   evals/run-evals.py naming-convention                 # 1 trial par cas
   evals/run-evals.py naming-convention --trials 3      # 3 trials (recommandé)
   evals/run-evals.py naming-convention --without-skill # test de retraite (baseline sans skill)
+  evals/run-evals.py naming-convention --without-scripts # skill sans scripts/ ni linter/
   evals/run-evals.py archi-vide --cases nominal-go-repository
   evals/run-evals.py naming-convention --dry-run       # liste les cas sans appeler claude
 
@@ -115,12 +116,15 @@ def install_fixture(workspace, fixture):
                        capture_output=True, check=True)
 
 
-def run_case(case, skill, with_skill, model, timeout, calibrate=False):
+def run_case(case, skill, with_skill, model, timeout, calibrate=False, without_scripts=False):
     workspace = tempfile.mkdtemp(prefix="skill-eval-")
     try:
         if with_skill:
             destination = os.path.join(workspace, ".claude", "skills", skill)
-            shutil.copytree(os.path.join(REPO, "skills", skill), destination)
+            # --without-scripts : même SKILL.md, sans le code exécutable. Isole la
+            # part des scripts dans la qualité (le skill seul vs skill + scripts).
+            ignore = shutil.ignore_patterns("scripts", "linter") if without_scripts else None
+            shutil.copytree(os.path.join(REPO, "skills", skill), destination, ignore=ignore)
 
         fixture = case.get("fixture")
         if fixture:
@@ -209,6 +213,8 @@ def run(argv=None):
                         help="n'applique PAS max_tool_calls/max_changed_lines, rapporte les "
                              "valeurs observées — à lancer avant de fixer un seuil")
     parser.add_argument("--without-skill", action="store_true", help="test de retraite : sans le skill installé")
+    parser.add_argument("--without-scripts", action="store_true",
+                        help="skill installé SANS scripts/ ni linter/ : mesure ce que les scripts apportent")
     parser.add_argument("--cases", help="ids de cas séparés par des virgules")
     parser.add_argument("--model", default=None)
     parser.add_argument("--timeout", type=int, default=300, help="timeout par trial (s)")
@@ -234,7 +240,10 @@ def run(argv=None):
         return 2
 
     with_skill = not args.without_skill
-    mode = "with-skill" if with_skill else "without-skill"
+    if args.without_skill and args.without_scripts:
+        print("erreur : --without-skill et --without-scripts sont exclusifs", file=sys.stderr)
+        return 2
+    mode = ("with-skill-no-scripts" if args.without_scripts else "with-skill") if with_skill else "without-skill"
     print(f"skill={args.skill}  mode={mode}  trials={args.trials}  cas={len(cases)}\n")
 
     results = []
@@ -242,7 +251,8 @@ def run(argv=None):
     total_trials = 0
     for case in cases:
         trial_results = [
-            run_case(case, args.skill, with_skill, args.model, args.timeout, args.calibrate)
+            run_case(case, args.skill, with_skill, args.model, args.timeout, args.calibrate,
+                     args.without_scripts)
             for _ in range(args.trials)
         ]
         passed = sum(1 for r in trial_results if r["passed"])

@@ -91,6 +91,63 @@ bash "$LINTER_DIR/lint.sh" "$TESTS_DIR/fixtures/realistic" --no-color >/dev/null
 rc=$?
 if [[ $rc -eq 0 ]]; then report PASS "realistic" "lint.sh" "exit=0"; else report FAIL "realistic" "lint.sh" "attendu exit=0, obtenu exit=$rc"; fi
 
+# Noms imposés par les frameworks (Rails, Python, Next, Vue) et exemples ✅ du
+# SKILL.md : 0 erreur, sinon le linter pousse l'agent à casser du code ou
+# contredit la doc.
+for fx in framework skill-examples; do
+  bash "$LINTER_DIR/lint.sh" "$TESTS_DIR/fixtures/$fx" --no-color >/dev/null 2>&1
+  rc=$?
+  if [[ $rc -eq 0 ]]; then report PASS "$fx" "lint.sh" "exit=0"; else report FAIL "$fx" "lint.sh" "attendu exit=0, obtenu exit=$rc"; fi
+done
+
+echo ""
+echo "── Tests linter : liste exacte des findings ────────────────"
+# Les compteurs ne voient pas un faux positif qui en remplace un autre ; la
+# liste règle|fichier|ligne|nom, si.
+for expected_list in "$TESTS_DIR"/expected-findings/*.txt; do
+  fx="$(basename "$expected_list" .txt)"
+  got=$(bash "$LINTER_DIR/lint.sh" "$TESTS_DIR/fixtures/$fx" --json 2>/dev/null | python3 -c '
+import json, os, sys
+root = sys.argv[1]
+d = json.load(sys.stdin)
+rows = ["|".join([f["rule"], os.path.relpath(f["file"], root), str(f["line"]), f["name"]]) for f in d["findings"]]
+print("\n".join(sorted(rows)))' "$TESTS_DIR/fixtures/$fx")
+  if diff <(echo "$got" | sed '/^$/d') <(sed '/^$/d' "$expected_list") >/dev/null; then
+    report PASS "$fx" "findings" "$(grep -c . "$expected_list") attendus, identiques"
+  else
+    report FAIL "$fx" "findings" "différence avec expected-findings/$fx.txt"
+    diff <(echo "$got" | sed '/^$/d') <(sed '/^$/d' "$expected_list") | sed 's/^/       /'
+  fi
+done
+
+echo ""
+echo "── Tests lint.sh : usage invalide = exit 2, jamais un faux ✅ ──"
+bash "$LINTER_DIR/lint.sh" "$TESTS_DIR/fixtures/does-not-exist" >/dev/null 2>&1; rc=$?
+if [[ $rc -eq 2 ]]; then report PASS "usage" "cible introuvable" "exit=2"; else report FAIL "usage" "cible introuvable" "attendu exit=2, obtenu exit=$rc"; fi
+bash "$LINTER_DIR/lint.sh" "$TESTS_DIR/fixtures/violations" --only prefix >/dev/null 2>&1; rc=$?
+if [[ $rc -eq 2 ]]; then report PASS "usage" "--only inconnu" "exit=2"; else report FAIL "usage" "--only inconnu" "attendu exit=2, obtenu exit=$rc"; fi
+
+echo ""
+echo "── Tests lint.sh --since : seulement ce que la modif introduit ──"
+SINCE_DIR="$(mktemp -d)"
+(
+  cd "$SINCE_DIR" || exit 1
+  export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+  git init -q && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+  printf 'export function orderTotal() {}\nexport const data = 1;\n' > order-service.ts
+  git add . && git -c user.name=t -c user.email=t@t commit -qm legacy
+  printf 'export function orderTotal() {}\nexport const data = 1;\nexport function grabUser() {}\n' > order-service.ts
+)
+got=$(cd "$SINCE_DIR" && bash "$LINTER_DIR/lint.sh" order-service.ts --since HEAD --json 2>/dev/null \
+      | python3 -c 'import json,sys; print(" ".join(f["name"] for f in json.load(sys.stdin)["findings"] if f["severity"]=="error"))')
+if [[ "$got" == "grabUser" ]]; then report PASS "--since" "fichier modifié" "1 nouvelle erreur sur 3 (grabUser)"
+else report FAIL "--since" "fichier modifié" "attendu 'grabUser', obtenu '$got'"; fi
+got=$(cd "$SINCE_DIR" && printf 'export const value2 = 1;\n' > new-file.ts && bash "$LINTER_DIR/lint.sh" . --since HEAD --json 2>/dev/null \
+      | python3 -c 'import json,sys; print(" ".join(sorted(f["name"] for f in json.load(sys.stdin)["findings"] if f["severity"]=="error")))')
+if [[ "$got" == "grabUser value2" ]]; then report PASS "--since" "dossier + fichier non suivi" "grabUser value2"
+else report FAIL "--since" "dossier + fichier non suivi" "attendu 'grabUser value2', obtenu '$got'"; fi
+rm -rf "$SINCE_DIR"
+
 echo ""
 echo "── Test de non-régression : architecture (une passe par fichier, jamais par ligne) ──"
 # Le gain mesuré (7 min → 0,07 s) vient à ~98 % de ce principe, pas du langage

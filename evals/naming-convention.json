@@ -135,6 +135,27 @@
       "prompt": "Explain how JWT authentication works.",
       "should_trigger": false,
       "expected_checks": []
+    },
+    {
+      "id": "fixture-legacy-no-drive-by-rename",
+      "prompt": "Add a function to src/services/invoice-api.ts that fetches the list of invoices for a customer (GET /customers/:id/invoices).",
+      "fixture": "legacy-vue",
+      "should_trigger": true,
+      "max_turns": 16,
+      "max_changed_lines": 12,
+      "diff_checks": ["(?m)^\\+.*function (fetch|list|get)\\w*Invoice"],
+      "forbidden_diff_patterns": ["(?m)^-.*\\b(invoiceTotal|grabInvoice|data)\\b"],
+      "_why": "Le fichier a déjà 3 violations que l'agent n'a pas introduites. Sans `lint.sh --since HEAD`, le linter les lui montre en erreur et il les renomme en passant (appelants cassés). Le diff le prouve, pas la réponse."
+    },
+    {
+      "id": "fixture-legacy-file-casing",
+      "prompt": "Add a Vue composable in src/composables that exposes the current customer's invoice list.",
+      "fixture": "legacy-vue",
+      "should_trigger": true,
+      "max_turns": 16,
+      "expected_checks": ["useInvoice\\w*\\.ts"],
+      "forbidden_patterns": ["use-invoice"],
+      "_why": "Les composables existants sont en camelCase (useCart.ts). Le kebab-case par défaut du skill créerait une seconde convention ; le SKILL dit de suivre l'existant et de le déclarer dans custom.md (Custom File Casing)."
     }
   ]
 }

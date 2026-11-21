@@ -46,7 +46,7 @@ claude "Show me everything in vocabulary/custom.md"
 claude "Remove the entity suffix 'Appointment' from vocabulary/custom.md"
 
 # Audit a file against the vocabulary
-claude "Audit src/services/userService.ts against the naming convention vocabulary"
+claude "Audit src/services/user-service.ts against the naming convention vocabulary"
 ```
 
 ## When to add vs. reuse
@@ -58,3 +58,18 @@ claude "Audit src/services/userService.ts against the naming convention vocabula
 | UI component specific to your design system (`Chip`, `Snackbar`, `FAB`) | Add to `custom.md` |
 | A core word already covers the concept (`Setting` ≈ `Preference`) | Use the core word |
 | The word is a synonym of an existing entry | Use the canonical core word |
+
+## Project file casing
+
+When the repo's existing files follow a casing the convention does not expect
+(Vue composables `useCart.ts`, camelCase spec files), add it instead of renaming:
+
+```markdown
+## Custom File Casing
+
+| Extension | Extra casing accepted |
+|:----------|:----------------------|
+| `ts` | `camelCase` |
+```
+
+It adds an accepted casing for that extension; the default stays valid.

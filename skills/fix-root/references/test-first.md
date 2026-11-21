@@ -26,12 +26,37 @@ It proves the test is not **vacuous** — that it would have caught this
 bug. It cannot check that the test covers the right edge cases; that is
 still yours, and comes from the step 6 edge-case list.
 
+## Red for the wrong reason
+
+A red run only counts if the test reached the buggy code. A test that
+imports a function the fix adds fails without the fix on an
+`ImportError` — red, yet it never exercised the bug. The script prints the
+last lines of the red output and, by default, rejects a red run that shows
+the test could not even reach the code (import error, unresolved symbol at
+compile time).
+
+Stronger: name what the red must say.
+
+```bash
+<skill-dir>/scripts/verify-test-first.sh --expect-red 'TypeError.*NoneType' "<test-cmd>" -- <fix-file>
+```
+
+`--expect-red <regex>` replaces the heuristic — use it too when the import
+error genuinely *is* the bug.
+
 ## Failure modes worth recognising
 
 **"no pending changes in `<file>`"** (exit 2) — the fix must be
 uncommitted when you run this. If the fix adds a brand-new file, git has
-nothing to stash for it: `git add -N <file>` first so it is tracked, or
-verify that file by hand.
+nothing to stash for it: stage it with `git add <file>` first (`git add -N`
+does not work — `git stash` refuses intent-to-add entries).
+
+**"test command succeeded even without the fix" when the test lives in the
+fix file** (Rust `#[cfg(test)]`, doctests, a script asserting on itself) —
+stashing the fix also stashes the test, so the red run ran the old tests.
+The script cannot split one file; verify by hand: revert only the fix
+hunk, run, expect red; restore, run, expect green — and say so in the
+report.
 
 **"test command succeeded even without the fix"** (exit 1) — the honest
 answer is that the test does not reproduce the bug. Either it asserts
@@ -56,3 +81,29 @@ does not track (`__pycache__`, `.tsbuildinfo`, `target/`,
 `node_modules/.cache`) survives the stash swap and can make the red run
 silently reuse the fixed build — producing a false pass or a false fail.
 Pass a test command that disables its cache.
+
+## Suite gate — `verify-suite.sh`
+
+Step 10's gate. Same stash replay as above, applied to the whole suite:
+run without the fix, run with it, compare the failing tests by id.
+
+- **Exit 3 is a pass with a duty.** Every listed failure also fails
+  without the fix: the fix did not cause it. Report each one as a separate
+  bug in the step 12 report — don't revert, don't fix it in this diff.
+- **"UNVERIFIED"** (exit 1) — the suite fails both ways and no failing
+  test id could be read from its output, so "pre-existing" can't be
+  proven. Name them with a pattern matching a whole output line, first
+  group = test id:
+
+  ```bash
+  verify-suite.sh --fail-pattern '^not ok [0-9]+ - (.*)$' "<suite-cmd>" -- <fix-file>
+  ```
+
+  Built in: pytest, unittest, go test, cargo test, jest/vitest, rspec,
+  mocha, phpunit, minitest. Durations and colours are stripped before
+  comparing, so the same test matches across runs.
+- **A failure that appears only with the fix but looks flaky** — the gate
+  still calls it NEW. Re-run the gate; if it flips, that's a flaky test to
+  report, and the evidence is the two gate outputs, not an impression.
+- Build caches and files rewritten by the suite: same traps and recovery
+  as the red→green check above.

@@ -5,6 +5,11 @@ replaces steps 2-3 of the workflow and nothing else: the culprit commit
 still has to survive step 4's evidence rule, and the fix still goes
 through steps 7-12.
 
+**Short or full after the bisect?** Apply the triage's escalation criteria
+to the culprit's diff and to the fix: >2 files, a public signature, shared
+mutable state, or a service boundary → full-track steps 6, 9 and 11 apply
+too. Otherwise the regression stays on the short track.
+
 **Entry condition: a named good ref.** A tag, a release SHA, last
 known-green CI. "It used to work" without a ref is not a starting point —
 ask for one, or find one (`git tag --sort=-creatordate | head`, the last
@@ -38,6 +43,11 @@ present. Write that test first, then:
   [--keep <test-file>]... [--repeat N] -- <repro-cmd>
 ```
 
+`<repro-cmd>` is either several words — `-- python3 -B -c "from m import f;
+assert f() == 1"`, quoting preserved — or one single shell string for pipes
+and `&&`. It runs from the directory you launched the script from, so
+relative paths work from a subfolder.
+
 It wraps `git bisect run` with the guards that decide whether you get a
 culprit or a confident wrong answer:
 
@@ -53,6 +63,8 @@ culprit or a confident wrong answer:
   A refusal is still a wasted bisect — pass `--keep`, or avoid the
   situation entirely with a repro that lives outside the tree
   (`python3 -c '...'`, a script in `/tmp`), which needs no `--keep` at all.
+  A kept file the start commit doesn't track (the test you just wrote) is
+  put back in the tree when the script ends.
 - **`--repeat N`** runs the predicate N times per commit and calls the
   commit good only if all N pass.
 - **`git bisect reset` always**, including on interrupt, so the repo is
@@ -66,6 +78,8 @@ culprit or a confident wrong answer:
 dependency) and git skips it instead of blaming it. Make the repro return
 125 in that case — otherwise a build failure reads as the bug and bisect
 blames the commit that broke the build, not the one that broke behavior.
+A crash (exit ≥ 128: segfault, abort) is mapped to 1, "bad" — raw
+`git bisect run` would abort the whole bisection on it.
 
 ## What bisect cannot do
 

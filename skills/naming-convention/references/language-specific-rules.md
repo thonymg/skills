@@ -43,9 +43,9 @@ interface CreateOrderDTO {
   totalAmount: number
 }
 
-interface UpdateUserEmailDTO {
+interface UpdateUserNameDTO {
   userId: string
-  email: string
+  userName: string
 }
 ```
 
@@ -77,7 +77,7 @@ def is_email_valid(email: str) -> bool: ...
 
 # Dataclass — PascalCase, fields use approved suffixes
 @dataclass
-class UserProfile:
+class UserDTO:
     user_id: str
     user_name: str
     is_active: bool = True
@@ -158,7 +158,7 @@ end
 ### Kotlin Specifics
 ```kotlin
 // Data classes — PascalCase with approved attribute suffixes
-data class UserProfile(
+data class UserDTO(
     val userId: String,
     val userName: String,
     val isActive: Boolean = true,

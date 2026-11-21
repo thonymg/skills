@@ -15,6 +15,10 @@
                      .claude/skills/<name>/ or ~/.agents/skills/<name>/.
   5. MCP names     — a skill naming codebase-memory tools must document both
                      harness prefixes in SKILL.md, plus pi lazy activation.
+  6. vocabulary    — words in a SKILL.md QUICK REFERENCE table exist in the
+                     skill's vocabulary/*.md (the only files its linter reads).
+  7. tested code   — a skill with scripts/ or linter/ is exercised by a
+                     tests/*.sh runner.
 
 Usage: tests/check-skills.py [--max-description N]
 Exit: 0 clean, 1 violations.
@@ -33,6 +37,10 @@ TOOLS = ("search_graph|trace_path|detect_changes|index_status|get_code_snippet|"
          "query_graph|get_architecture|list_projects|index_repository|manage_adr|"
          "check_index_coverage|get_graph_schema|search_code|ingest_traces|delete_project")
 LAZY = "trace_path|query_graph|detect_changes|get_architecture|get_graph_schema"
+# Skills that already shipped untested scripts when check 7 was added. Listed,
+# not silenced: they print as debt on every run. Remove a name once its
+# tests/*.sh exists — a NEW skill can't be added here without someone noticing.
+UNTESTED_SCRIPTS_DEBT = {"agents-md-sync", "micro-optimiz"}
 
 
 def md_files(skill_dir):
@@ -104,7 +112,47 @@ def check(skill, skill_dir, max_description):
         elif (any(re.search(rf"`({LAZY})\b", t) for t in bodies.values())
               and "cbm_search_tools" not in src):
             problems.append(f"{skill}: uses a lazy tool, SKILL.md missing the cbm_search_tools note")
+
+    problems += check_quick_reference(skill, skill_dir, src)
+    problems += check_scripts_tested(skill, skill_dir)
     return problems
+
+
+def check_quick_reference(skill, skill_dir, src):
+    """6. A SKILL.md word table that is not in vocabulary/*.md: the agent is told
+    a word is approved while the linter — which reads only vocabulary/ — rejects it."""
+    vocab_dir = os.path.join(skill_dir, "vocabulary")
+    section = re.search(r"^## QUICK REFERENCE.*?\n(.*?)(?=^## )", src, re.S | re.M)
+    if not os.path.isdir(vocab_dir) or not section:
+        return []
+    known = set()
+    for name in os.listdir(vocab_dir):
+        if name.endswith(".md"):
+            known |= {w.lower() for w in re.findall(r"^\|\s*`([A-Za-z][A-Za-z0-9_]*)`",
+                                                    open(os.path.join(vocab_dir, name)).read(), re.M)}
+    missing = []
+    for label, words in re.findall(r"^\|\s*\*\*(.+?)\*\*\s*\|(.+?)\|\s*$", section.group(1), re.M):
+        if label.startswith("Connectors"):   # structurels, pas du vocabulaire
+            continue
+        missing += [w for w in (x.strip() for x in words.split(",")) if w and w.lower() not in known]
+    return [f"{skill}: QUICK REFERENCE words missing from vocabulary/*.md: {', '.join(missing)}"] if missing else []
+
+
+def check_scripts_tested(skill, skill_dir):
+    """7. A skill shipping executable code (scripts/, linter/) needs a test runner
+    in tests/ that exercises it — fix-root shipped two untested scripts with a
+    data-loss bug before this check existed."""
+    if not any(os.path.isdir(os.path.join(skill_dir, d)) for d in ("scripts", "linter")):
+        return []
+    if skill in UNTESTED_SCRIPTS_DEBT:
+        print(f"debt: {skill} ships untested scripts (UNTESTED_SCRIPTS_DEBT)")
+        return []
+    tests_dir = os.path.join(ROOT, "tests")
+    marker = f"skills/{skill}/"
+    for name in os.listdir(tests_dir):
+        if name.endswith(".sh") and marker in open(os.path.join(tests_dir, name)).read():
+            return []
+    return [f"{skill}: ships scripts but no tests/*.sh references {marker}"]
 
 
 def main():
@@ -123,7 +171,7 @@ def main():
     if problems:
         print(f"\n{len(problems)} problem(s)")
         return 1
-    print("skills: frontmatter, budgets, links, script paths and MCP prefixes all clean")
+    print("skills: frontmatter, budgets, links, script paths, MCP prefixes, vocabulary and script tests all clean")
     return 0
 
 

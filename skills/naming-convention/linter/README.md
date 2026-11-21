@@ -7,7 +7,10 @@ Moteur : `nc-lint.pl` (Perl 5 de base). Zéro dépendance, lecture seule, un seu
 
 L'ancien moteur (5 scripts bash, ~950 lignes, ligne par ligne) mettait 7 min 07 s sur
 234 fichiers, avec ~85 % de faux positifs sur du code conforme. Le nouveau : 0,07 s,
-0 faux positif sur le même corpus.
+0 faux positif sur le même corpus — un corpus qui n'est **pas** dans ce repo, donc
+non reproductible ici. Sur 5 projets réels non conformes (4 582 fichiers, novembre
+2026), un échantillon de 30 erreurs donnait 37 % d'erreurs utiles et 50 % de bruit ;
+les exemptions de framework et `--since` ci-dessous visent ce bruit.
 
 **L'essentiel vient du principe ci-dessous (identifiants déclarés, une passe par
 fichier), pas de Perl.** Mesuré : le même principe réécrit en bash nu tombe déjà à
@@ -35,15 +38,27 @@ d'usages.
 ## Usage
 
 ```bash
-./lint.sh <fichier-ou-dossier> [--json] [--only CHECK] [--summary] [--no-color]
+./lint.sh <fichier-ou-dossier>... [--since REF] [--json] [--only CHECK] [--summary] [--no-color]
 
 ./lint.sh src/user-service.ts            # un seul fichier (usage typique de l'agent)
+./lint.sh src/user-service.ts --since HEAD  # seulement ce que la modif a introduit
 ./lint.sh .                              # tout le projet
 ./lint.sh . --only prefixes              # un seul check
-./lint.sh . --json                       # sortie machine, courte
+./lint.sh . --json                       # sortie machine : compteurs + findings détaillés
 ```
 
 **Exit code** : `0` si aucune erreur, `1` sinon → intégrable en pre-commit ou CI.
+`2` si l'usage est invalide (cible introuvable, `--only` inconnu, baseline illisible) :
+une faute de frappe ne produit plus jamais un faux « ✅ ».
+
+**`--since REF`** (dans `lint.sh`, qui a le droit d'appeler git) : lance le moteur sur la
+version `REF` de chaque fichier pour fabriquer une baseline, puis ne signale que les
+findings absents de cette baseline. Sur un dossier, seuls les fichiers modifiés ou non
+suivis depuis `REF` sont vérifiés. **`--baseline FILE.json`** (dans `nc-lint.pl`) fait le
+filtrage à partir d'une sortie `--json` précédente ; la clé est `règle + identifiant +
+nom de fichier`, indépendante des numéros de ligne.
+
+**`--json`** : `{"checks":{…},"errors":N,"warnings":M,"findings":[{check,rule,severity,file,line,name,message}]}`.
 
 ## Checks
 
@@ -53,12 +68,26 @@ d'usages.
 | `casing-identifiers` | `CASING` `SCREAMING` — casse de l'identifiant selon son type et son langage | erreur |
 | `prefixes` | `PREFIX` `COMPOUND` — préfixe hors vocabulaire, verbe composé | erreur |
 | `forbidden` | `VAGUE` `NUMBERED` (erreur), `UNIT` (warning) | mixte |
-| `class-suffixes` | `SUFFIX` — classe (erreur) / composant (warning) sans suffixe reconnu | mixte |
+| `class-suffixes` | `SUFFIX` — classe sans suffixe reconnu (les composants ne sont pas vérifiés) | erreur |
 | `standalone-suffixes` | `STANDALONE` (erreur), `ENTITY?` (warning) | mixte |
+| `vocabulary` | `VOCAB?` — mot hors vocabulaire au milieu d'un identifiant | warning |
 
-**Erreurs vs warnings** : une violation du vocabulaire ou de la structure est une
-**erreur** et bloque la CI. Les jugements contextuels (`UNIT`, `ENTITY?`, composant sans
-suffixe UI) sont des **warnings**.
+**Erreurs vs warnings** : une violation de la structure (casse, préfixe, suffixe de
+classe, mot vague, numéro) est une **erreur** et bloque la CI. Les jugements contextuels
+(`UNIT`, `ENTITY?`, `VOCAB?`) sont des **warnings**.
+
+`VOCAB?` couvre ce que `PREFIX` (premier mot) et `SUFFIX` (dernier mot) ne voient pas :
+`fetchBananaWidgetList` passait en « ✅ ». Il ne répète pas un mot déjà signalé par
+une autre règle, et n'admet que les connecteurs des patterns 5 et 8
+(`To/From/In/By/Per/Of`) et les unités qu'exige la règle `UNIT` (`InSeconds`, `InMs`…).
+Aucune tolérance par type de fichier (tests compris) ni par mot courant : tout autre
+mot va dans `custom.md` ou est renommé.
+
+**Exemptions de framework** : méthodes Rails `*_params`, `current_*`, `to_*` ; Python
+`@property` / `@cached_property` / setters (traités comme propriétés) ; classes
+d'exception (parent `…Error`/`…Exception`) ; fichiers de routage `[id].tsx`,
+`[...slug].tsx`, `+page.ts`, `_app.tsx`, `_document.tsx` ; `const X = defineComponent(…)`,
+`forwardRef`, `memo`, `styled` = composant, même dans un `.ts`.
 
 `UNIT` ne s'applique qu'aux **unités de temps** (`duration`, `timeout`, `delay`,
 `interval`, `ttl`) : `width`/`height`/`size` ont une unité implicite imposée par la
@@ -92,6 +121,10 @@ Le projet cible peut étendre le vocabulaire via son propre `vocabulary/custom.m
 section** : un mot ajouté sous « Custom Entity Suffixes » vaut comme entité, pas comme
 préfixe.
 
+La section `## Custom File Casing` ajoute une casse de fichier acceptée par extension
+(`| \`ts\` | \`camelCase\` |`) — pour un projet dont les fichiers existants suivent déjà
+une autre convention que le kebab-case par défaut.
+
 Recherché à la fois **en descendant** (un `vocabulary/custom.md` sous la cible) et **en
 remontant** depuis la cible jusqu'à la racine git (un `vocabulary/custom.md` au-dessus).
 Ce second sens est ce qui permet de linter un seul fichier profond dans l'arbre — le cas
@@ -106,6 +139,7 @@ du projet.
 | Redondance contextuelle `user.getUserName()` | demande le type de l'appelant |
 | Pertinence de l'entité choisie | sémantique — `Order` vs `Cart` vs `Item` |
 | Décision d'ajout dans `custom.md` | jugement humain |
+| Paramètres, variables locales, méthodes d'objet littéral, signatures multi-lignes | non extraits (faux négatifs connus) |
 
 ## Tests
 
@@ -113,10 +147,13 @@ du projet.
 bash ../../../tests/run-linter-tests.sh
 ```
 
-Quatre fixtures : `violations` (compteurs attendus par check), `clean`, `custom-vocab`, et
-`realistic` — du vrai code React/TS/Python conforme, qui **doit** sortir 0 erreur. C'est le
-test anti-faux-positifs : sans lui, rien n'empêche le bruit de revenir à la prochaine
-modification de regex.
+Fixtures : `violations` (compteurs attendus par check), `clean`, `custom-vocab`,
+`realistic` — du vrai code React/TS/Python conforme, qui **doit** sortir 0 erreur —,
+`framework` (noms imposés par Rails/Python/Next/Vue, 0 erreur) et `skill-examples` (les
+exemples ✅ de SKILL.md, 0 erreur : la doc et le linter ne peuvent plus se contredire).
+En plus des compteurs, la **liste exacte** des findings de chaque fixture est comparée à
+`tests/expected-findings/<fixture>.txt` : un faux positif qui en remplace un autre ne
+passe plus inaperçu.
 
 ## Intégration pre-commit
 

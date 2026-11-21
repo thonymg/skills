@@ -1,6 +1,6 @@
 # Approved Attribute Suffixes
 
-Used after an entity: `getOrderStatus()`, `updateUserEmail()`.
+Used after an entity: `getOrderStatus()`, `updateUserName()`.
 Used alone as variable names: `orderStatus`, `totalAmount`.
 Add project-specific attributes in `vocabulary/custom.md`.
 

@@ -1,0 +1,3 @@
+VOCAB?|order-card.spec.ts|7|PaymentFailed
+VOCAB?|order_model.py|14|NotFound
+VOCAB?|orders_controller.rb|20|NotFound

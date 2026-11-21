@@ -1,0 +1,4 @@
+VOCAB?|UserCard.tsx|11|boxWidth
+VOCAB?|UserCard.tsx|13|handleClick
+VOCAB?|UserCard.tsx|5|UserCardProps
+VOCAB?|order-service.ts|2|buffer

@@ -73,6 +73,10 @@ files nor `custom.md`, the name is invalid — propose adding the word to `custo
 ⚠ Never apply kebab-case to Python/Dart/Ruby files: `order-repository.py` is not
 importable. The casing follows the language, the vocabulary stays identical.
 
+A project whose files already follow another casing (Vue composables `useCart.ts` in
+camelCase) declares it in `vocabulary/custom.md` under `## Custom File Casing` — match
+the existing files rather than introducing a second convention.
+
 ---
 
 ## NAME PATTERNS — pick the first that fits
@@ -80,13 +84,13 @@ importable. The casing follows the language, the vocabulary stays identical.
 | # | Pattern | Example |
 |:--|:--------|:--------|
 | 1 | `[Prefix] + [Entity]` | `fetchUser()`, `deleteOrder()` |
-| 2 | `[Prefix] + [Entity] + [Attribute]` | `getOrderStatus()`, `updateUserEmail()` |
+| 2 | `[Prefix] + [Entity] + [Attribute]` | `getOrderStatus()`, `updateUserName()` |
 | 3 | `[is/has/can/validate] + [Entity] + [Attribute?]` | `isUserActive()`, `hasPermission()` |
 | 4 | `[Prefix] + [Entity] + [Collection]` | `fetchUserList()`, `listOrderPage()` |
-| 5 | `[Prefix] + [EntityA] + To/From + [EntityB]` | `assignUserToOrder()` |
+| 5 | `[Prefix] + [EntityA] + To/From + [EntityB]` | `addItemToCart()` |
 | 6 | `[Entity] + [Infra suffix]` | `UserService`, `OrderRepository` |
 | 7 | `[Entity] + [UI suffix]` | `UserCard`, `PaymentForm` |
-| 8 | `[Action] + [Entity] + DTO` | `CreateOrderDTO`, `UpdateUserEmailDTO` |
+| 8 | `[Action] + [Entity] + DTO` | `CreateOrderDTO`, `UpdateUserNameDTO` |
 
 ---
 
@@ -113,25 +117,40 @@ fetchUserOrderList  →  fetch | User | Order | List
 ## MECHANICAL CHECK — run the linter
 
 The protocol above is the judgment half. The deterministic half is scripted — run it
-instead of re-reading your own output:
+**after** the protocol, not instead of it: a clean linter run does not mean the names
+are right (see what it cannot check, below).
 
 ```bash
-<skill-dir>/linter/lint.sh <file-or-dir> [--json] [--only CHECK]
+<skill-dir>/linter/lint.sh <file-or-dir> [--since <ref>] [--json] [--only CHECK]
 ```
 
 Run it **after writing or renaming identifiers** (pass the single file, not the repo),
 when the user asks to audit a file/folder/project, and before reporting a rename as done.
-Zero dependency (Perl 5), read-only — it never writes to the project. Exit 1 on error.
-`--json` returns `{"checks":{…},"errors":N,"warnings":M}` — prefer it to keep output short.
+Zero dependency (Perl 5), read-only — it never writes to the project.
+Exit 0 clean, 1 on error, 2 on a usage problem (missing target, unknown check).
+
+- **Refactor or audit → no `--since`.** Every finding is in scope, errors and `VOCAB?`
+  warnings alike: rename until the run is clean, updating every call site (see
+  « Renaming an existing identifier » below).
+- **Scoped change (a feature, a bug fix) in an existing file → `--since HEAD`.** It
+  shows only what this change introduced; pre-existing violations go into the report
+  for the refactor, not into this diff — a drive-by rename breaks callers the change
+  never meant to touch.
+- `--json` returns the counts **and** each finding (`rule`, `file`, `line`, `name`,
+  `message`) — prefer it to keep output short.
 
 | Severity | Rules | What to do |
 |:---------|:------|:-----------|
 | **error** | `CASING` `SCREAMING` `PREFIX` `COMPOUND` `VAGUE` `NUMBERED` `SUFFIX` `STANDALONE` | fix before delivering |
-| **warning** | `UNIT` (time unit unstated), `ENTITY?`, component without a UI suffix | judge case by case |
+| **warning** | `VOCAB?` (word outside the vocabulary), `UNIT` (time unit unstated), `ENTITY?` | pick an approved word, or propose it for `custom.md` |
+
+Framework-imposed names are exempt: Rails `*_params` / `current_*` / `to_*`, Python
+`@property`, exception classes, file-routing names (`[id].tsx`, `_app.tsx`, `+page.ts`).
 
 The linter checks declared identifiers only. It cannot check, and you still must:
-`get` vs `fetch` vs `find`, contextual redundancy (`user.getUserName()`), and whether the
-chosen entity is the right one.
+`get` vs `fetch` vs `find`, contextual redundancy (`user.getUserName()`), whether the
+chosen entity is the right one, and identifiers it does not extract (parameters, local
+variables inside functions, object-literal methods, multi-line signatures).
 
 ---
 
@@ -158,7 +177,7 @@ These words appear in several categories. Resolve them with this table:
 - **No contextual redundancy.** `user.getUserName()` ❌ → `user.getName()` ✅
 - **No vague words.** `data`, `info`, `temp`, `flag`, `misc`, `stuff`, `thing` are forbidden everywhere.
 - **No numbered identifiers.** `status2`, `error3` ❌ — name the actual concept.
-- **No standalone infra suffix.** `Manager` ❌ → `OrderManager` ✅
+- **No standalone infra suffix.** `Handler` ❌ → `OrderHandler` ✅
 - **SCREAMING_SNAKE_CASE** only for true immutable constants. Never on `var` / `let`.
 - **Units when ambiguous.** `duration` ❌ → `durationInSeconds` ✅ (the linter only
   enforces this on time units — `width`/`height`/`size` have a platform-implicit unit)

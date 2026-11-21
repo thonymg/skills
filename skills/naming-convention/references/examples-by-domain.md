@@ -51,14 +51,14 @@ manageOrder()       // "manage" not a prefix
 // ✅
 getUserId(user)
 getOrderStatus(orderId)
-updateUserEmail(userId, email)
+updateUserName(userId, name)
 setSessionToken(sessionId, token)
 calculateOrderTotal(orderId)
 countOrderItems(orderId)
 
 // ❌ Forbidden
 order.getOrderStatus()    // contextual redundancy — use order.getStatus()
-getUserInfo()             // "info" not in vocabulary — use getUserProfile()
+getUserInfo()             // "info" not in vocabulary — use getUserSummary()
 ```
 
 ### Boolean Check — `[Verify Prefix] + [Entity] + [optional Attribute]`
@@ -93,7 +93,7 @@ getAllData()        // "data" not in vocabulary
 ### Entity Relation — `[Prefix] + [Entity A] + To/From + [Entity B]`
 ```
 // ✅
-assignUserToOrder(userId, orderId)
+addUserToTeam(userId, teamId)
 addItemToCart(itemId, cartId)
 removeItemFromCart(itemId, cartId)
 ```
@@ -141,7 +141,7 @@ Pattern: `[Action or Entity] + [Entity] + [DTO / Schema / Enum]`
 ```
 // ✅
 CreateOrderDTO
-UpdateUserEmailDTO
+UpdateUserNameDTO
 UserSchema
 OrderStatusEnum
 PaymentTypeEnum

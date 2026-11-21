@@ -23,6 +23,10 @@
     "standalone-suffixes": {
       "errors": 1,
       "warnings": 0
+    },
+    "vocabulary": {
+      "errors": 0,
+      "warnings": 1
     }
   },
   "clean": {
@@ -49,6 +53,10 @@
     "standalone-suffixes": {
       "errors": 0,
       "warnings": 0
+    },
+    "vocabulary": {
+      "errors": 0,
+      "warnings": 5
     }
   },
   "custom-vocab": {
@@ -73,6 +81,10 @@
       "warnings": 0
     },
     "standalone-suffixes": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "vocabulary": {
       "errors": 0,
       "warnings": 0
     }
@@ -101,6 +113,70 @@
     "standalone-suffixes": {
       "errors": 0,
       "warnings": 0
+    },
+    "vocabulary": {
+      "errors": 0,
+      "warnings": 4
+    }
+  },
+  "framework": {
+    "casing-files": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "casing-identifiers": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "prefixes": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "forbidden": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "class-suffixes": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "standalone-suffixes": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "vocabulary": {
+      "errors": 0,
+      "warnings": 3
+    }
+  },
+  "skill-examples": {
+    "casing-files": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "casing-identifiers": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "prefixes": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "forbidden": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "class-suffixes": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "standalone-suffixes": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "vocabulary": {
+      "errors": 0,
+      "warnings": 2
     }
   }
 }

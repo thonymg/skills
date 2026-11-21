@@ -40,10 +40,10 @@ rows entirely.
 | 4 | Bug might cross service boundaries | `trace_path(function_name, mode="cross_service")` |
 | 4 | Rule out "this is intentional" — *only if the faulty code looks deliberate* (a guard, a special case, a comment defending it) | `manage_adr` |
 | 6 | Every caller/consumer of the code the fix would touch (baseline) | `trace_path(function_name, direction="both", depth=2)`, then `check_index_coverage` on the files it touched |
-| 6 | Same bug pattern duplicated elsewhere | `search_graph(name_pattern="...")` on the faulty pattern |
+| 6 | Same bug pattern duplicated elsewhere | `search_code(pattern)` on the faulty code pattern; `search_graph(name_pattern="...")` only matches symbol names |
 | 9 | Actual blast radius of the diff just made | `detect_changes()` |
 | 9 | Post-fix callers vs the step 6 baseline | `trace_path(function_name, direction="both", depth=2)` again — anything new is scope creep |
-| 9 | No sibling occurrence left behind | `search_graph` / `search_code` re-run on the faulty pattern |
+| 9 | No sibling occurrence left behind | `search_code(pattern)` re-run on the faulty pattern (`search_graph` for a symbol name) |
 | 9 | Signature changed → every call site still compatible | `query_graph(cypher)` over callers' argument shapes |
 | 11 | Record the finding — *only if it contradicts a documented decision, or the bug already came back once* | `manage_adr` |
 

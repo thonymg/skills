@@ -1,0 +1,5 @@
+VOCAB?|order-service.ts|19|MAX_RETRY_COUNT
+VOCAB?|order-service.ts|20|timeoutInMs
+VOCAB?|user_repository.py|10|timeout_in_ms
+VOCAB?|user_repository.py|5|is_email_valid
+VOCAB?|user_repository.py|9|MAX_RETRY_COUNT

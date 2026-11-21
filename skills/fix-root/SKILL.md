@@ -34,7 +34,7 @@ skill exists to avoid.
 | `references/regression.md` | The behavior worked before — a tag, a release, a green CI run |
 | `references/full-track.md` | The full track was triggered by the triage below |
 | `references/graph-tools.md` | `codebase-memory-mcp` is available and you are about to call it |
-| `references/test-first.md` | The red→green check misbehaves, or its script is missing |
+| `references/test-first.md` | The red→green or suite gate misbehaves, or its script is missing |
 
 MCP names are bare, not callable as written. Prefix `cbm_` under pi,
 `mcp__codebase-memory-mcp__` under Claude Code. Under pi, `trace_path`,
@@ -104,7 +104,11 @@ Steps marked *(full)* are skipped entirely on the short track.
    repo. This baseline is what step 9 verifies against, and it decides the
    edge cases the fix must cover. See `references/full-track.md`.
 7. **Write the failing test first.** Reproduce the bug as a test, show it
-   red, before touching the fix.
+   red, before touching the fix. Not unit-testable (a WAF, a proxy, a
+   config the code doesn't own)? A reproducible command that exits
+   non-zero while the bug is present — a `curl`, a script — is the red
+   check. A fix that lands outside the repo is reported **unverified**,
+   never as done.
 8. **Apply the minimal fix, root cause only.** No renames, no reshaping,
    no drive-by cleanup — note the temptation as a follow-up, not part of
    this diff. Then prove red→green mechanically rather than by self-report:
@@ -115,8 +119,10 @@ Steps marked *(full)* are skipped entirely on the short track.
 
    `<skill-dir>` is wherever this SKILL.md sits — resolve it from this
    file's own path, don't assume a repo layout. Exit 0 only on a confirmed
-   red→green. Script missing, or a build cache making the replay lie:
-   `references/test-first.md`.
+   red→green. Read the red output it prints: red must come from the bug,
+   not from an import error — `--expect-red '<regex>'` makes that
+   mechanical. Script missing, test inside the fix file, or a build cache
+   making the replay lie: `references/test-first.md`.
 
 ### Verify
 
@@ -124,17 +130,29 @@ Steps marked *(full)* are skipped entirely on the short track.
    the diff, post-fix callers compared to the step 6 baseline, sibling
    occurrences of the same bug, call-site compatibility if a signature
    changed. Checklist: `references/full-track.md`.
-10. **Run the full suite**, not just the new test, plus one test per edge
-    case from step 6. A failure that was already failing before the fix is
-    a separate bug to report, not a reason to revert this one — check the
-    pre-fix baseline or last known-green before blaming this change. A
-    genuinely new failure means revert and re-diagnose, never patch
-    forward on top of it.
+10. **Run the full suite through the gate**, not just the new test, plus
+    one test per edge case from step 6. In a monorepo, "full" means every
+    package that depends on the changed code, not the whole repo. The gate
+    runs the suite without then with the fix and compares failing tests —
+    "that failure was already there" is measured, never asserted:
+
+    ```bash
+    <skill-dir>/scripts/verify-suite.sh "<suite-cmd>" -- <fix-file> [...]
+    ```
+
+    | Exit | Meaning | Do |
+    |:-----|:--------|:---|
+    | 0 | suite green with the fix | continue |
+    | 3 | only pre-existing failures (they fail without the fix too) | report each as a separate bug; don't revert |
+    | 1 | a NEW failure, or failures it cannot identify (UNVERIFIED) | revert and re-diagnose, never patch forward — or pass `--fail-pattern` so it can name them |
+
+    Output format unknown to it: `references/test-first.md`.
 11. **Self-critique, separate pass.** *(full)* Three ways this change could
     break something silently, each checked against the code rather than
     from memory. See `references/full-track.md`.
 12. **Report.** Track chosen and why, root cause with its citation, the
-    diff, tests added, suite status. Full track also: hypotheses rejected
+    diff, tests added, and the exit codes of `verify-test-first.sh` and
+    `verify-suite.sh` with the pre-existing failures they listed. Full track also: hypotheses rejected
     with their evidence, and the step 9 results.
 
 ## Hard rules
@@ -148,8 +166,10 @@ Steps marked *(full)* are skipped entirely on the short track.
 - Full track: never fewer than 3 hypotheses. Short track: exactly one — if
   a second is needed to explain the evidence, that is the escalation
   signal, take it.
-- Never skip the failing-test-first step. Both tracks, no exception.
+- Never skip the failing-test-first step. Both tracks, no exception — a
+  repro command counts as the test when the bug is not unit-testable.
 - Never mix a refactor into this diff. Note it, don't do it here.
-- Never report "done" without a full suite run — a fix that only passed its
-  own new test is unverified. On the full track, step 9 is equally
+- Never report "done" unless `verify-suite.sh` exited 0 or 3 — a fix that
+  only passed its own new test is unverified, and a suite run you only
+  describe is a self-report. On the full track, step 9 is equally
   non-optional.

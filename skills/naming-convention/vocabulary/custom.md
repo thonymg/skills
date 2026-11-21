@@ -68,3 +68,16 @@ Add component types specific to your design system (e.g. `Stepper`, `Chip`, `Sna
 | Suffix | Represents |
 |:-------|:-----------|
 | *(add here)* | |
+
+---
+
+## Custom File Casing
+
+Extends the file casing rules of `SKILL.md` (it adds an accepted casing, it never
+removes the default one). Declare it when the project's existing files already follow
+another convention — e.g. Vue composables `useCart.ts` in camelCase.
+Casings: `kebab-case`, `camelCase`, `PascalCase`, `snake_case`.
+
+| Extension | Extra casing accepted |
+|:----------|:----------------------|
+| *(add here, e.g. `ts` → `camelCase`)* | |
