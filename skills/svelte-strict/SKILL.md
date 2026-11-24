@@ -1,6 +1,12 @@
 ---
 name: svelte-strict
-description: Use for ANY Svelte or SvelteKit coding task, even a single component — creating, editing, fixing or reviewing a .svelte file, a .svelte.ts/.svelte.js module, a SvelteKit route, load function, form action, hook or remote function, or shadcn-svelte UI; migrating Svelte 4 / legacy syntax (export let, $:, on:, slots, stores) to runes; or whenever the user mentions Svelte, SvelteKit, runes, $state, $derived, $effect, $props or shadcn-svelte. A deterministic workflow gated by scripts instead of self-report — one CLI (svs) detects the real versions, scopes the task, lints every touched file with the project's own compiler, eslint-plugin-svelte and 44 tested svelte-strict rules (runes, state, SSR leaks, SvelteKit, shadcn-svelte composition), blocks only NEW findings against a git baseline, forbids silent suppressions and config loosening, and generates the report. Complements the official svelte and shadcn-svelte skills; bugs still go through fix-root.
+description: >-
+  Script-gated workflow for ANY Svelte or SvelteKit task, even one component:
+  .svelte, .svelte.ts/.svelte.js, routes, load functions, form actions, hooks,
+  remote functions, shadcn-svelte UI; migrating Svelte 4 syntax (export let,
+  $:, on:, slots, stores) to runes. Use whenever the user mentions Svelte,
+  SvelteKit, runes, $state, $derived, $effect, $props or shadcn-svelte.
+  Complements the official svelte skills; bugs still go through fix-root.
 ---
 
 # svelte-strict
@@ -16,19 +22,17 @@ Exit codes decide: **0** pass · **1** fail or unverified · **2** usage/environ
 
 ## Workflow (in this order, no step skipped)
 
-1. **Environment** — `$SVS doctor` (exit 2 → `$SVS doctor --install`, or install the missing sibling skill), then `$SVS env`. Never assume a version: rules depend on the detected Svelte / Kit (2 vs 3) / shadcn setup.
-2. **Scope** — `$SVS start "<glob>" … --kind bug|feature|migration|ui|refactor`. The baseline is the working tree at this moment: only findings the change ADDS will block; existing ones are listed, never hidden.
-3. **Route** — `$SVS route <files you will touch>`. Read exactly the references it prints; its review checklist goes into the report.
-4. **Bug?** Follow the **fix-root** skill (regression → bisect, failing test first, root-cause fix). This skill only adds steps 6–8 on top. New logic (`--kind feature`): a failing test first, recorded with
+1. **Start** — `$SVS start "<glob>" … --kind bug|feature|migration|ui|refactor --files <files you will touch>`. One call: checks node, tooling and the sibling skills (exit 2 → `$SVS doctor --install`, or install the missing skill), detects the real Svelte / Kit (2 vs 3) / shadcn setup — never assume a version — takes the baseline (the working tree now: only findings the change ADDS block; existing ones are listed, never hidden), and prints the reference sections and review checklist for those files (the checklist goes into the report). Read nothing else from `references/` unless it says so. `$SVS doctor`, `env [--json]`, `route <files> [--full]` stay available for diagnosis.
+2. **Bug?** Follow the **fix-root** skill (regression → bisect, failing test first, root-cause fix). This skill only adds steps 4–6 on top. New logic (`--kind feature`): a failing test first, recorded with
    `$SVS step test-first -- bash <fix-root-dir>/scripts/verify-test-first.sh "<test cmd>" -- <files…>`.
-5. **Write the code.** UI from shadcn-svelte: install/update components only through `$SVS shadcn add <name>` (pinned CLI, records what it wrote; `--overwrite` and registry URLs need a validated waiver).
-6. **Verify** — `$SVS verify <every touched file>`. Fix every `GATE` line and re-run. After 3 failing passes `svs` says STOP: ask the user (strategy or a waiver), then `$SVS start --resume`. `REVIEW` lines and pre-existing findings do not block.
-7. **Suite** — `$SVS step suite -- bash <fix-root-dir>/scripts/verify-suite.sh "<suite cmd>" -- <files…>` (exit 3 = only pre-existing failures).
-8. **Finish** — `$SVS finish`. It is the only definition of done: scope respected, every changed file verified on its current content, no new suppression/`any`/config change without a validated waiver, no new `svelte-check` diagnostic (baseline worktree), naming-convention on the changed files, steps run on the current tree, all waivers validated. It writes `.svelte-strict/report.md`; give the user its result, do not rewrite it.
+3. **Write the code.** UI from shadcn-svelte: install/update components only through `$SVS shadcn add <name>` (pinned CLI, records what it wrote; `--overwrite` and registry URLs need a validated waiver).
+4. **Verify** — `$SVS verify <every touched file>`. Fix every `GATE` line and re-run (each rule's fix is printed once; `more: K — … --rule X` shows the hidden ones). After 3 failing passes `svs` says STOP: ask the user (strategy or a waiver), then `$SVS start --resume`. `REVIEW` lines and pre-existing findings do not block.
+5. **Suite** — `$SVS step suite -- bash <fix-root-dir>/scripts/verify-suite.sh "<suite cmd>" -- <files…>` (exit 3 = only pre-existing failures).
+6. **Finish** — `$SVS finish`. It is the only definition of done: scope respected, every changed file verified on its current content, no new suppression/`any`/config change without a validated waiver, no new `svelte-check` diagnostic (baseline worktree), naming-convention on the changed files, steps run on the current tree, all waivers validated. It writes `.svelte-strict/report.md`; give the user its result, do not rewrite it.
 
 Never edit a protected config (`eslint.config.*`, `tsconfig*`, `svelte.config.*`, `vite.config.*`, `components.json`) or add `svelte-ignore`/`eslint-disable`/`@ts-ignore`/`any` to get green. If a finding is a false positive, propose `$SVS waive <rule> <file> <reason>` — it is written `validé: non`; only the user turns it into `oui`.
 
-## References — read what `svs route` prints
+## References — `svs start` prints the sections you need
 
 | Tag | File | Contents |
 |---|---|---|

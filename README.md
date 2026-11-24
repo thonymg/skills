@@ -129,7 +129,7 @@ trackers, coherence, math notation) instead of duplicating them.
 
 Svelte work where "done" is an exit code, not a claim:
 
-- **One CLI, `svs`** ([SKILL.md](skills/svelte-strict/SKILL.md)): `env` (real Svelte/Kit/shadcn versions, no defaults) → `start` (scope + git baseline) → `route` (which references to read) → `verify` (project compiler + ESLint, 3-pass limit) → `step` (records fix-root's `verify-test-first.sh`/`verify-suite.sh`) → `finish` (scope, hash-bound verification, anti-calibration, `svelte-check` vs a baseline worktree, naming-convention, validated waivers) → generated `report.md`.
+- **One CLI, `svs`** ([SKILL.md](skills/svelte-strict/SKILL.md)): `start --files …` (one call: checks the toolchain, detects the real Svelte/Kit/shadcn versions with no defaults, takes the git baseline, prints only the reference sections the files need; `doctor`/`env`/`route` remain for diagnosis) → `verify` (grouped by rule with its fix, capped at 20 lines then `more: K — … --rule X`; project compiler + ESLint, 3-pass limit) → `step` (records fix-root's `verify-test-first.sh`/`verify-suite.sh`) → `finish` (scope, hash-bound verification, anti-calibration, `svelte-check` vs a baseline worktree, naming-convention, validated waivers) → generated `report.md`.
 - **ESLint is the engine** ([tooling/](skills/svelte-strict/tooling)): eslint-plugin-svelte rules reused first, plus 44 `svelte-strict/*` rules (runes, state, SSR leaks via an import graph, SvelteKit load/forms/hooks/remote functions, shadcn-svelte composition) each with RuleTester good/bad cases. Catalog generated from rule metadata: [rules.md](skills/svelte-strict/references/rules.md).
 - **Legacy projects**: only findings the change adds block; `svs legacy-report` lists the rest as the migration work list. Waivers are proposed by the agent and validated only by the user.
 - Requires the sibling skills `fix-root` and `naming-convention`; tooling installs with `svs doctor --install` (pinned `npm ci`).
@@ -138,7 +138,7 @@ Svelte work where "done" is an exit code, not a claim:
 
 PocketBase used as a Go framework, where "done" is an exit code:
 
-- **`pbg`** ([SKILL.md](skills/pocketbase-go/SKILL.md)): `env` reads the real version and module path from `go.mod` (PocketBase moved to `ganigeorgiev.com` in v0.41; GitHub is frozen at v0.40.6) → `start` → `route` → `verify` → `step` → `finish`.
+- **`pbg`** ([SKILL.md](skills/pocketbase-go/SKILL.md)): `start --files …` reads the real version and module path from `go.mod` (PocketBase moved to `ganigeorgiev.com` in v0.41; GitHub is frozen at v0.40.6), takes the baseline and prints only the needed reference sections → `verify` → `step` → `finish`; `doctor`/`env`/`route` remain for diagnosis.
 - **Code**: 12 `go/analysis` analyzers with analysistest good/bad cases ([catalog](skills/pocketbase-go/references/rules.md)) — `e.Next()`, `txApp`/`e.App`, bound filters, `{param}` routes, closed filesystems, reversible migrations, Automigrate, cron ids, ignored errors, mail sender, settings cache, route auth — plus pinned staticcheck and gofmt, built with the project's Go toolchain.
 - **Runtime**: an ephemeral PocketBase built from the project (never under `/tmp`, so Automigrate stays off) validates every API rule, runs `pb-access.json` — the access specification, blocking: every collection with rules is covered for anon/owner/other plus spoofing and ownership probes — and checks that reverting the task's new migrations gives back exactly the baseline schema. Deny statuses were measured on v0.42.3, not copied from docs.
 - Requires `strict-core`, `fix-root` and `naming-convention` (which now reads `.go` and `.svelte`).
@@ -184,13 +184,15 @@ Two layers, both wired for CI:
 
   Fixtures live in `tests/fixtures/` (`violations/` with known counts, `clean/` with zero, `custom-vocab/` proving `vocabulary/custom.md` is honored). Expected counts per check are pinned in `tests/expected.json`.
 
-- **Skill trigger evals** — one prompt set per skill in `evals/*.json` (`naming-convention`, `archi-vide`, `micro-optimiz`), played through `claude -p` in a throwaway workspace (costs API budget; manual workflow `evals.yml`):
+- **Skill trigger evals** — one prompt set per skill in `evals/*.json` (`naming-convention`, `archi-vide`, `micro-optimiz`, `fix-root`, `svelte-strict`, `pocketbase-go`), played through `claude -p` in a throwaway workspace (costs API budget; manual workflow `evals.yml`):
 
   ```bash
   python3 evals/run-evals.py micro-optimiz --dry-run       # list cases, no API calls
   python3 evals/run-evals.py micro-optimiz --trials 3
   python3 evals/run-evals.py micro-optimiz --without-skill # retirement test (baseline)
   ```
+
+  Each run reports tool calls, `total_tokens` (input + cache + output) and cost, and writes the medians to `evals/results/<skill>-<mode>.json`: compare a change against the stored run — tokens may only go down if the score does not.
 
   Each case asserts whether the skill should trigger and which regexes the final answer must (or must not) match. Cases cover nominal moves, guard rails (no big-bang rewrite, `BUGFIX` labeling, no speculative generality), and negative prompts that must NOT trigger. Run `--without-skill` quarterly: if the bare model passes, the skill section is absorbed — slim it down.
 

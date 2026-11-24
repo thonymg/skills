@@ -6,7 +6,7 @@
 //
 //   0 pass · 1 fail or unverified · 2 usage/environment · 3 only pre-existing suite failures
 //
-// Commands: doctor [--install] · env · start <glob…> [--kind K] [--resume] · route <file…>
+// Commands: doctor [--install] · env [--json] · start <glob…> [--kind K] [--files <f…>] [--resume] · route <file…> [--full]
 //           verify <file…> [--json] · step <name> -- <cmd…> · waive <rule> <file> <reason…>
 //           shadcn <cmd> [args…] · legacy-report [dir…] · finish · docs sync|path [--dry-run]
 //           hook post-tool-use|stop · gen-references [--check]
@@ -95,20 +95,29 @@ function cmdDoctor(args) {
   if (spawnSync('git', ['--version']).status !== 0) problems.push('git not found');
   for (const p of problems) console.error(`✗ ${p}`);
   if (problems.length) return 2;
-  console.log('svs doctor: ok (graph: use codebase-memory if connected, else svs falls back to its own import resolver)');
+  if (!args.includes('--quiet')) console.log('svs doctor: ok (graph: use codebase-memory if connected, else svs falls back to its own import resolver)');
   return 0;
 }
 
-function cmdEnv() {
+function cmdEnv(args = []) {
   const env = detectEnv();
   if (!env.svelte) die(1, 'svs env: svelte not found in node_modules — install the project dependencies first (no default version is assumed).');
   fs.mkdirSync(STATE_DIR, { recursive: true });
   writeJSON(path.join(STATE_DIR, 'env.json'), env);
-  console.log(JSON.stringify(sortKeys(env), null, 2));
+  if (args.includes('--json')) console.log(JSON.stringify(sortKeys(env), null, 2));
+  else console.log(core.formatEnvLine([['svelte', env.svelte], ['kit', env.kit], ['shadcn', env.shadcn ? 'yes' : null], ['runes', env.runes === null ? null : String(env.runes)], ['async', env.async], ['remote-functions', env.remoteFunctions], ['adapter', env.adapter], ['ts', env.ts]]) + ` (full: svs env --json)`);
   return 0;
 }
 
 const REFERENCES = { svelte: 'references/svelte.md', legacy: 'references/svelte.md', test: 'references/svelte.md', kit: 'references/sveltekit.md', shadcn: 'references/shadcn.md' };
+// tag -> [file, heading prefix]; no heading = whole file. A renamed heading throws in printSections.
+const SECTIONS = {
+  svelte: [['references/svelte.md', 'State decision table']],
+  legacy: [['references/svelte.md', 'Legacy']],
+  test: [['references/svelte.md', 'Testing Svelte 5']],
+  kit: [['references/sveltekit.md']],
+  shadcn: [['references/shadcn.md']],
+};
 function routeTags(env, files) {
   const tags = new Set();
   for (const f of files) {
@@ -126,15 +135,19 @@ function routeTags(env, files) {
   }
   return [...tags].sort();
 }
-async function cmdRoute(files) {
+async function cmdRoute(args) {
+  const full = args.includes('--full');
+  const files = args.filter((a) => !a.startsWith('--'));
   if (!files.length) die(2, 'svs route: give the files you will touch.');
   const env = loadEnv();
   const tags = routeTags(env, files);
   const { checklist } = await engine();
   const refs = [...new Set(tags.map((t) => REFERENCES[t]).filter(Boolean))].sort();
   console.log(`tags: ${tags.join(' ') || '(none)'}`);
-  console.log('read:');
-  for (const r of refs) console.log(`  ${posix(path.join(SKILL, r))}`);
+  if (full) {
+    console.log('read:');
+    for (const r of refs) console.log(`  ${posix(path.join(SKILL, r))}`);
+  } else core.printSections(SKILL, tags, SECTIONS);
   const items = checklist.filter((c) => tags.includes(c.when));
   if (items.length) { console.log('review checklist (not blocking, reported by finish):'); for (const c of items) console.log(`  [${c.id}] ${c.text}`); }
   const s = loadState();
@@ -143,6 +156,7 @@ async function cmdRoute(files) {
 }
 
 async function cmdVerify(args) {
+  const only = core.takeFlag(args, '--rule');
   const json = args.includes('--json');
   const files = args.filter((a) => !a.startsWith('--')).map(rel);
   if (!files.length) die(2, 'svs verify: give the files to check.');
@@ -177,9 +191,11 @@ async function cmdVerify(args) {
   const passes = core.recordVerify(s, perFile, ok);
   if (json) console.log(JSON.stringify(sortKeys({ ok, passes, ...report }), null, 2));
   else {
-    for (const f of report.gate) console.log(`GATE    ${f.file}:${f.line}:${f.column}  ${f.rule}  ${f.message}`);
-    for (const f of report.waived) console.log(`WAIVED  ${f.file}:${f.line}:${f.column}  ${f.rule}`);
-    for (const f of report.review) console.log(`REVIEW  ${f.file}:${f.line}:${f.column}  ${f.rule}  ${f.message}`);
+    if (only) {
+      const known = [...report.gate, ...report.waived, ...report.review].map((f) => f.rule);
+      if (!known.includes(only)) die(2, `svs verify: no finding for rule \`${only}\`. Rules with findings: ${[...new Set(known)].join(', ') || '(none)'}${known.length ? `. Closest: ${core.suggestOptions(only, known).join(', ')}` : ''}.`);
+    }
+    core.printFindings(report, { cli: 'svs', files, rule: only, ruleOf: (f) => f.rule, whereOf: (f) => `${f.file}:${f.line}:${f.column}`, fixOf: (r) => eng.strictRules[r.replace(/^svelte-strict\//, '')]?.meta?.docs?.fix });
     if (report.preExisting) console.log(`(${report.preExisting} pre-existing finding(s) in these files: not blocking, listed by \`svs legacy-report\`)`);
     console.log(`verify: ${ok ? 'PASS' : `FAIL (${report.gate.length} new gate finding(s), pass ${passes}/${core.MAX_PASSES})`}`);
   }
@@ -375,8 +391,20 @@ async function cmdGenReferences(args) {
 
 // ── main ─────────────────────────────────────────────────────────────────────
 const [command, ...args] = process.argv.slice(2);
+// `start --files <f…>` = doctor + env + start + route in one call; without --files it is the plain start.
+async function cmdStart(args) {
+  const files = core.takeList(args, '--files');
+  if (!files.length) return core.cmdStart(args);
+  if (!args.includes('--resume')) {
+    const failed = cmdDoctor(['--quiet']) || cmdEnv([]);
+    if (failed) return failed;
+  }
+  const code = core.cmdStart(args);
+  return code || cmdRoute(files);
+}
+
 const commands = {
-  doctor: cmdDoctor, env: cmdEnv, start: (a) => core.cmdStart(a), route: cmdRoute, verify: cmdVerify, step: core.cmdStep,
+  doctor: cmdDoctor, env: cmdEnv, start: cmdStart, route: cmdRoute, verify: cmdVerify, step: core.cmdStep,
   waive: core.cmdWaive, shadcn: cmdShadcn, 'legacy-report': cmdLegacyReport, finish: cmdFinish, docs: cmdDocs,
   hook: (a) => core.cmdHook(a, { script: fileURLToPath(import.meta.url), matches: (f) => /\.(svelte|[cm]?[jt]s)$/.test(f) }),
   'gen-references': cmdGenReferences,

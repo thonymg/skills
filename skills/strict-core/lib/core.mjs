@@ -46,6 +46,118 @@ export function globRe(glob) {
  * @param {string[]} [o.starWaivers] rules for which `*` is an allowed waiver target
  * @param {object} [o.stateExtra]   tool-specific default fields of state.json
  */
+/** Removes `--name value` from args and returns the value (or null). */
+export function takeFlag(args, name) {
+  const at = args.indexOf(name);
+  if (at < 0) return null;
+  const value = args[at + 1];
+  if (value === undefined || value.startsWith('--')) die(2, `${name} needs a value.`);
+  args.splice(at, 2);
+  return value;
+}
+
+/** Closest valid options to a mistyped one (edit distance), for error messages. */
+export function suggestOptions(input, options, max = 3) {
+  const dist = (a, b) => {
+    const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      let prev = row[0]; row[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const tmp = row[j];
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+        prev = tmp;
+      }
+    }
+    return row[b.length];
+  };
+  return [...options].map((o) => [o, dist(String(input).toLowerCase(), String(o).toLowerCase())])
+    .sort((x, y) => x[1] - y[1] || x[0].localeCompare(y[0])).slice(0, max).map(([o]) => o);
+}
+
+/**
+ * Compact findings: grouped by rule, the fix once per rule, at most `cap` finding
+ * lines (gate first), then one `more:` line saying what was cut and how to see it.
+ * Text only: it never decides ok/exit. With `rule`, that rule is shown in full.
+ */
+export function printFindings(report, { cli, files, cap = 20, ruleOf, whereOf, fixOf = () => undefined, rule = null, log = console.log }) {
+  const kinds = [['GATE', report.gate], ['WAIVED', report.waived], ['REVIEW', report.review]];
+  let left = rule ? Infinity : cap;
+  const hidden = new Map();
+  for (const [label, list] of kinds) {
+    const groups = new Map();
+    for (const f of list) {
+      const r = ruleOf(f);
+      if (rule && r !== rule) continue;
+      if (!groups.has(r)) groups.set(r, []);
+      groups.get(r).push(f);
+    }
+    for (const [r, fs_] of groups) {
+      const shown = fs_.slice(0, Math.max(left, 0));
+      left -= shown.length;
+      if (fs_.length > shown.length) hidden.set(r, (hidden.get(r) ?? 0) + fs_.length - shown.length);
+      if (!shown.length) continue;
+      const messages = new Set(shown.map((f) => f.message ?? ''));
+      const fix = label === 'GATE' ? fixOf(r) : undefined;
+      const head = `${label} ${r}${fs_.length > 1 ? ` x${fs_.length}` : ''}`;
+      log(`${head}${messages.size === 1 && [...messages][0] ? `  ${[...messages][0]}` : ''}${fix ? `  fix: ${fix}` : ''}`);
+      for (const f of shown) log(`  ${whereOf(f)}${messages.size > 1 && f.message ? `  ${f.message}` : ''}`);
+    }
+  }
+  if (hidden.size) {
+    const total = [...hidden.values()].reduce((a, b) => a + b, 0);
+    const [top] = [...hidden.entries()].sort((a, b) => b[1] - a[1])[0];
+    log(`more: ${total} hidden (${[...hidden].map(([r, n]) => `${r} x${n}`).join(', ')}) — ${cli} verify ${files.join(' ')} --rule ${top}`);
+  }
+}
+
+/** Removes `--name a b c` (values up to the next flag) from args and returns them. */
+export function takeList(args, name) {
+  const at = args.indexOf(name);
+  if (at < 0) return [];
+  let end = at + 1;
+  while (end < args.length && !args[end].startsWith('--')) end++;
+  return args.splice(at, end - at).slice(1);
+}
+
+/**
+ * Markdown section by heading prefix: from `#… title` to the next heading of the
+ * same or a higher level. No title = the whole file. Missing title throws: a route
+ * table pointing at a renamed heading must fail loudly, never print nothing.
+ */
+export function readSection(file, title) {
+  const text = fs.readFileSync(file, 'utf8');
+  if (!title) return text.trimEnd();
+  const lines = text.split('\n');
+  const at = lines.findIndex((l) => /^#{1,6} /.test(l) && l.replace(/^#+ /, '').startsWith(title));
+  if (at < 0) throw new Error(`section "${title}" not found in ${file}`);
+  const level = /^#+/.exec(lines[at])[0].length;
+  let end = lines.length;
+  for (let i = at + 1; i < lines.length; i++) {
+    const m = /^(#+) /.exec(lines[i]);
+    if (m && m[1].length <= level) { end = i; break; }
+  }
+  return lines.slice(at, end).join('\n').trimEnd();
+}
+
+/** Prints the reference sections a set of route tags needs, each once. */
+export function printSections(skillDir, tags, table, log = console.log) {
+  const seen = new Set();
+  for (const tag of tags) {
+    for (const [file, title] of table[tag] ?? []) {
+      const key = `${file}#${title ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      log(readSection(path.join(skillDir, file), title));
+      log('');
+    }
+  }
+}
+
+/** One-line environment summary: `name: value · name2: value2`, absent values skipped. */
+export function formatEnvLine(pairs) {
+  return pairs.filter(([, v]) => v !== null && v !== undefined && v !== false).map(([k, v]) => (v === true ? k : `${k} ${v}`)).join(' · ');
+}
+
 export function createCore(o) {
   const MAX_PASSES = 3;
   const flag = process.argv.indexOf('--project');
@@ -292,5 +404,6 @@ export function createCore(o) {
     loadState, saveState, openTask, inScope, waivers, waived,
     changedFiles, scopeTreeHash, addedLines, withBaselineWorktree, siblingSkill,
     cmdStart, cmdStep, cmdWaive, cmdHook, recordVerify, newFindings, commonChecks, finalize,
+    takeFlag, takeList, suggestOptions, printFindings, readSection, printSections, formatEnvLine,
   };
 }

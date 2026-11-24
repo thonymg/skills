@@ -1,21 +1,13 @@
 ---
 name: micro-optimiz
-description: Daily maintainability pass — code health, not speed. Each round
-  is one small, behavior-preserving diff against four axes — code smells
-  (dead code, duplication, nesting, swallowed errors, two-purpose
-  functions), conventions, architectural discordance (a module violating a
-  layer, or diverging from the error or dependency contract its siblings
-  honour), and design. Work too large for one round is sliced into a
-  ledger; architecture work is reported with its evidence, never attempted.
-  Use when the user asks to simplify, refactor, clean up, reduce
-  complexity, or shrink code; to improve a function's design, make code
-  more generic, or remove a flag/boolean parameter; mentions dead code,
-  duplication, error handling, naming, code smells, SOLID, readability,
-  maintainability, technical debt, convention drift, inconsistency between
-  modules, or a daily cleanup pass. Also triggers on a pasted function to
-  simplify — small input still goes through the catalog, not ad-hoc advice.
-  Explicitly NOT performance work — never optimize for speed, memory, or
-  benchmarks; never add features or swap libraries.
+description: >-
+  Daily maintainability pass — code health, not speed: one small
+  behavior-preserving diff per round (code smells, conventions, architectural
+  discordance, design). Use to simplify, refactor, clean up, reduce complexity
+  or shrink code; remove a flag parameter; dead code, duplication, error
+  handling, SOLID, readability, technical debt, convention drift, a daily
+  cleanup pass, or a pasted function to simplify. NOT performance work: never
+  optimize speed or memory, add features or swap libraries.
 ---
 
 # micro-optimiz — daily maintainability pass
@@ -109,38 +101,27 @@ need one `cbm_search_tools` call first.
    layer. That is what makes conformance findings citable instead of a
    matter of taste — about three files, no more
    ([references/conformance.md](references/conformance.md)).
-4. **Hunt in this order.** Free wins first, judgment calls last. Each axis
-   names the reference that holds its moves; the graph calls that widen a
-   step beyond the current file are in
-   [references/graph-tools.md](references/graph-tools.md).
+4. **Hunt in this order** — free wins first, judgment calls last; each axis names the
+   reference holding its moves (graph calls that widen a step beyond the file:
+   [references/graph-tools.md](references/graph-tools.md)). Load the matching profile
+   from [languages/](languages/).
 
-   a. **Delete** — dead code, unused exports/params, commented-out blocks,
-      speculative flexibility, redundant comments.
-   b. **Flatten** — guard clauses, merged conditions, removed else-branches,
-      exhaustive matches instead of if-chains (catalog A & B).
-   c. **Error paths** — swallowed or over-broad catches, exceptions as
-      control flow, scattered try/catch that belongs at one boundary
+   a. **Delete** — dead code, unused exports/params, commented-out blocks, speculative
+      flexibility, redundant comments.
+   b. **Flatten** — guard clauses, merged conditions, no else-branches, exhaustive
+      matches (catalog A & B).
+   c. **Error paths** — swallowed or over-broad catches, exceptions as control flow
       ([references/error-handling.md](references/error-handling.md)).
-   d. **Unify** — merge proven duplication (rule of three) into one
-      generic, well-named helper; align divergent names for the same
-      concept (catalog B9, C1, C11). Generic means *parametrizing what
-      already varies* — never speculative flexibility. Check for
-      near-duplicates repo-wide first, so the helper absorbs all of them
-      and not just the two in front of you.
-   e. **Reshape** — the one function or class with the worst
-      complexity-to-purpose ratio
+   d. **Unify** — merge proven duplication (rule of three) into one well-named helper;
+      generic means parametrizing what already varies, never speculative flexibility.
+      Check near-duplicates repo-wide first (catalog B9, C1, C11).
+   e. **Reshape** — the one function or class with the worst complexity-to-purpose
+      ratio; confirm it by fan-out, not by eye
       ([references/composition-fp.md](references/composition-fp.md)).
-      Confirm which one actually has the worst fan-out instead of
-      eyeballing it.
-   f. **Align** — the file works and reads fine but does things differently
-      from the rest of the codebase: a layer crossed that siblings respect,
-      a diverging error or dependency contract, constants or tests in an
-      off-convention place, the same concept under another name
-      ([references/conformance.md](references/conformance.md)). Fix it when
-      it fits the budget, otherwise report it with its citation. Align to
-      the convention that already exists — never invent one here.
-
-   Load the matching language profile from [languages/](languages/).
+   f. **Align** — correct but out of step with the codebase: a layer crossed, a diverging
+      error or dependency contract, the same concept under another name. Fix it when it
+      fits the budget, else report it with its citation; align to the convention that
+      exists, never invent one ([references/conformance.md](references/conformance.md)).
 5. **Size every candidate against the round budget.** Fits → apply now.
    Too big → don't shrink your ambition, shrink the step: slice it per
    [references/multi-round.md](references/multi-round.md), apply step 1,
@@ -150,20 +131,13 @@ need one `cbm_search_tools` call first.
    that change, don't patch forward.
 
    **MECHANICAL CHECK — don't eyeball the round budget:**
-   ```bash
-   <skill-dir>/scripts/verify-round.sh [--verify-cmd "<test/type-check cmd>"]
-   ```
-   `<skill-dir>` is wherever this SKILL.md is installed —
-   `.claude/skills/micro-optimiz/` as a project skill,
-   `~/.agents/skills/micro-optimiz/` when shared across harnesses. Resolve
-   it from this file's own path; don't assume a repo layout. Script missing
-   → count with `git diff --numstat` by hand and say you did.
-   Computes files-changed and lines-changed from `git diff --numstat` (exact,
-   not eyeballed) against the two hard limits, and runs `--verify-cmd` if
-   given as the behavior-preservation check. Exit 1 = over budget, slice
-   into [references/multi-round.md](references/multi-round.md) instead of
-   shrinking scope. Zero dependency (bash + git). It cannot count "at most
-   one structural reshape" — that stays a judgment call.
+   `<skill-dir>/scripts/verify-round.sh [--verify-cmd "<test/type-check cmd>"]`
+   (`<skill-dir>` = where this SKILL.md is installed — resolve it from this file's path).
+   It counts files and lines from `git diff --numstat` against the two hard limits and
+   runs `--verify-cmd` as the behavior check. Exit 1 = over budget: slice via
+   [references/multi-round.md](references/multi-round.md), don't shrink scope. It cannot
+   count « at most one structural reshape » — that stays your call. Script missing →
+   `git diff --numstat` by hand, and say so.
 7. **Report the delta.** Lines before → after, what was deleted, what was
    reshaped and why. Any discordance found — fixed, or reported in the
    shape `references/conformance.md` requires. State ledger status (steps

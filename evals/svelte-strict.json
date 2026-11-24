@@ -76,6 +76,37 @@
       "prompt": "Crée un composant Vue 3 avec la Composition API qui affiche une liste.",
       "should_trigger": false,
       "expected_checks": []
+    },
+    {
+      "id": "fixture-legacy-migration-gate",
+      "prompt": "Migre src/lib/Legacy.svelte en Svelte 5 (runes). Le projet est le dépôt courant ; la suite se lance avec `node --test`.",
+      "fixture": "svelte-app",
+      "should_trigger": true,
+      "max_turns": 30,
+      "diff_checks": [
+        "(?m)^\\+.*\\$props\\(\\)",
+        "(?m)^\\+.*\\$derived"
+      ],
+      "forbidden_diff_patterns": [
+        "(?m)^\\+.*export let",
+        "(?m)^\\+\\s*\\$:\\s",
+        "(?m)^\\+.*on:click"
+      ],
+      "_why": "Chemin complet du skill : start, verify, finish sur un vrai projet. Mesure appels, tokens et coût du cycle groupé ; la qualité est le diff (runes, plus de syntaxe legacy) et `svs finish` rejoué par le harnais (exit 0), pas le PASS annoncé par l'agent.",
+      "final_gate": {
+        "cmd": [
+          "node",
+          ".claude/skills/svelte-strict/scripts/svs.mjs",
+          "finish"
+        ],
+        "expect_exit": 0,
+        "reopen_state": ".svelte-strict/state.json"
+      }
     }
+  ],
+  "requires_skills": [
+    "fix-root",
+    "naming-convention",
+    "strict-core"
   ]
 }

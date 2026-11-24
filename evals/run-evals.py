@@ -6,6 +6,8 @@ temporaire où le skill est installé comme project skill (.claude/skills/<name>
 
   - should_trigger    : le skill doit (ou non) être invoqué pendant la session
   - expected_checks[] : regex devant matcher la réponse finale
+  - final_gate        : {"cmd": [...], "expect_exit": 0} rejoué par le harnais dans le workspace
+                        à la fin du run (preuve indépendante de ce que dit l'agent)
   - forbidden_patterns[] : regex ne devant PAS matcher
   - fixture           : nom d'un dossier evals/fixtures/<nom> copié dans le
                         workspace et commité en git. Sans fixture le workspace
@@ -31,6 +33,7 @@ import json
 import os
 import re
 import shutil
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -86,6 +89,12 @@ def collect_metrics(events):
         "num_turns": result.get("num_turns"),
         "cost_usd": result.get("total_cost_usd"),
         "output_tokens": usage.get("output_tokens"),
+        "input_tokens": usage.get("input_tokens"),
+        "cache_read_tokens": usage.get("cache_read_input_tokens"),
+        "cache_creation_tokens": usage.get("cache_creation_input_tokens"),
+        "total_tokens": sum(usage.get(k) or 0 for k in (
+            "input_tokens", "cache_read_input_tokens",
+            "cache_creation_input_tokens", "output_tokens")) if usage else None,
     }
 
 
@@ -132,15 +141,25 @@ def install_fixture(workspace, fixture):
                        capture_output=True, check=True)
 
 
-def run_case(case, skill, with_skill, model, timeout, calibrate=False, without_scripts=False):
+def install_skill(workspace, name, without_scripts=False):
+    """Copie un skill dans le workspace ; node_modules est lié, pas copié (66 Mo)."""
+    destination = os.path.join(workspace, ".claude", "skills", name)
+    ignore = ["node_modules"] + (["scripts", "linter"] if without_scripts else [])
+    shutil.copytree(os.path.join(REPO, "skills", name), destination, ignore=shutil.ignore_patterns(*ignore))
+    modules = os.path.join(REPO, "skills", name, "tooling", "node_modules")
+    if os.path.isdir(modules):
+        os.symlink(modules, os.path.join(destination, "tooling", "node_modules"))
+
+
+def run_case(case, skill, with_skill, model, timeout, calibrate=False, without_scripts=False, requires=()):
     workspace = tempfile.mkdtemp(prefix="skill-eval-")
     try:
         if with_skill:
-            destination = os.path.join(workspace, ".claude", "skills", skill)
             # --without-scripts : même SKILL.md, sans le code exécutable. Isole la
             # part des scripts dans la qualité (le skill seul vs skill + scripts).
-            ignore = shutil.ignore_patterns("scripts", "linter") if without_scripts else None
-            shutil.copytree(os.path.join(REPO, "skills", skill), destination, ignore=ignore)
+            install_skill(workspace, skill, without_scripts)
+            for sibling in requires:
+                install_skill(workspace, sibling)
 
         fixture = case.get("fixture")
         if fixture:
@@ -157,6 +176,9 @@ def run_case(case, skill, with_skill, model, timeout, calibrate=False, without_s
             "--output-format", "stream-json", "--verbose",
             "--max-turns", str(case.get("max_turns", 8)),
             "--allowedTools", tools,
+            # Sans ça, les skills et réglages globaux de l'utilisateur (copies installées,
+            # blockReadsOutsideWorkingDirectories) contaminent le workspace isolé.
+            "--setting-sources", "project,local",
         ]
         if model:
             cmd += ["--model", model]
@@ -188,6 +210,33 @@ def run_case(case, skill, with_skill, model, timeout, calibrate=False, without_s
                 1 for line in diff_text.splitlines()
                 if line[:1] in "+-" and not line.startswith(("+++", "---"))
             )
+        # La commande de gate est rejouée ICI, dans le workspace, avant sa suppression :
+        # un « PASS » annoncé par l'agent ne compte pas, seul le code de sortie du script.
+        gate_note = None
+        final_gate = case.get("final_gate")
+        if final_gate and final_gate.get("reopen_state"):
+            # finish ferme la tâche quand il passe : le rejouer exige de la rouvrir. C'est le
+            # harnais qui le fait (jamais l'agent), puis finish recalcule tout sur l'arbre final.
+            state_path = os.path.join(workspace, final_gate["reopen_state"])
+            if os.path.isfile(state_path):
+                with open(state_path) as handle:
+                    state = json.load(handle)
+                if state.get("task"):
+                    state["task"]["open"] = True
+                with open(state_path, "w") as handle:
+                    json.dump(state, handle)
+            else:
+                gate_note = f"gate: {final_gate['reopen_state']} absent — l'agent n'a jamais ouvert de tâche"
+        if final_gate and not gate_note:
+            try:
+                gate = subprocess.run(final_gate["cmd"], cwd=workspace, capture_output=True, text=True,
+                                      stdin=subprocess.DEVNULL, timeout=180)
+            except subprocess.TimeoutExpired:
+                gate = None
+                gate_note = f"gate {' '.join(final_gate['cmd'][-2:])}: timeout 180s"
+            if gate and gate.returncode != final_gate.get("expect_exit", 0):
+                tail = (gate.stdout + gate.stderr).strip().splitlines()[-3:]
+                gate_note = f"gate {' '.join(final_gate['cmd'][-2:])}: exit {gate.returncode} attendu {final_gate.get('expect_exit', 0)} — {' | '.join(tail)}"
     except subprocess.TimeoutExpired:
         return {"passed": False, "reason": "timeout", "triggered": None, "metrics": {}}
     finally:
@@ -208,6 +257,8 @@ def run_case(case, skill, with_skill, model, timeout, calibrate=False, without_s
     for pattern in case.get("forbidden_diff_patterns", []):
         if re.search(pattern, diff_text):
             reasons.append(f"diff touche l'interdit: /{pattern}/")
+    if gate_note:
+        reasons.append(gate_note)
     budget = case.get("max_tool_calls")
     if budget is not None and not calibrate and metrics["tool_calls"] > budget:
         reasons.append(f"budget outils dépassé: {metrics['tool_calls']} > {budget}")
@@ -271,7 +322,7 @@ def run(argv=None):
     for case in cases:
         trial_results = [
             run_case(case, args.skill, with_skill, args.model, args.timeout, args.calibrate,
-                     args.without_scripts)
+                     args.without_scripts, spec.get("requires_skills", ()))
             for _ in range(args.trials)
         ]
         passed = sum(1 for r in trial_results if r["passed"])
@@ -290,6 +341,10 @@ def run(argv=None):
         if any(tracks):
             mixed = len(set(tracks)) > 1
             cost_note += f"  piste={'/'.join(str(t) for t in tracks)}{' ⚠️ instable' if mixed else ''}"
+        tokens = [t["metrics"].get("total_tokens") for t in trial_results if t.get("metrics")]
+        tokens = [v for v in tokens if v]
+        if tokens:
+            cost_note += f"  tokens={statistics.median(tokens):.0f}"
         if costs:
             cost_note += f"  ${sum(costs)/len(costs):.3f}"
         print(f"{status} {case['id']:32} {passed}/{args.trials}{cost_note}")
@@ -311,7 +366,11 @@ def run(argv=None):
                  if t.get("metrics") and t["metrics"].get("cost_usd") is not None]
     all_calls = [t["metrics"].get("tool_calls") for r in results for t in r["details"]
                  if t.get("metrics") and t["metrics"].get("tool_calls") is not None]
+    all_tokens = [t["metrics"].get("total_tokens") for r in results for t in r["details"]
+                  if t.get("metrics") and t["metrics"].get("total_tokens")]
     print(f"\nScore : {total_pass}/{total_trials} trials ({rate:.0f}%)")
+    if all_tokens:
+        print(f"Tokens: médiane {statistics.median(all_tokens):.0f}/trial (entrée + cache + sortie)")
     if all_costs:
         print(f"Coût  : ${sum(all_costs):.2f} total, ${sum(all_costs)/len(all_costs):.3f}/trial"
               f", {sum(all_calls)/len(all_calls):.1f} appels d'outils/trial")
@@ -321,6 +380,9 @@ def run(argv=None):
     out_path = os.path.join(out_dir, f"{args.skill}-{mode}.json")
     with open(out_path, "w") as handle:
         json.dump({"skill": args.skill, "mode": mode, "score_percent": rate,
+                   "median_total_tokens": statistics.median(all_tokens) if all_tokens else None,
+                   "median_tool_calls": statistics.median(all_calls) if all_calls else None,
+                   "median_cost_usd": statistics.median(all_costs) if all_costs else None,
                    "results": results}, handle, indent=2)
     print(f"Résultats → {os.path.relpath(out_path, REPO)}")
 

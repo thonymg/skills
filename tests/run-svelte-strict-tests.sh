@@ -71,7 +71,7 @@ P="$WORK/nosvelte"; mkdir -p "$P"; printf '{"name":"n"}\n' > "$P/package.json"
 svs env;                       expect "env without svelte = exit 1 (no default)" 1 "$RC" "$OUT" "svelte not found"
 make_project a
 svs start "src/**";            expect "start before env = exit 2" 2 "$RC" "$OUT"
-svs env;                       expect "env detects the installed svelte" 0 "$RC" "$OUT" '"svelte": "5\.'
+svs env --json;                expect "env detects the installed svelte" 0 "$RC" "$OUT" '"svelte": "5\.'
 svs start;                     expect "start without scope = exit 2" 2 "$RC" "$OUT"
 svs start "src/lib/**" --kind nope; expect "start with unknown kind = exit 2" 2 "$RC" "$OUT"
 svs start "src/lib/**" --kind refactor; expect "start" 0 "$RC" "$OUT" "baseline="
@@ -79,7 +79,14 @@ svs start "src/lib/**" --kind refactor; expect "start" 0 "$RC" "$OUT" "baseline=
 echo "── route ───────────────────────────────────────────────────"
 svs route src/lib/Legacy.svelte; first="$OUT"
 svs route src/lib/Legacy.svelte
-if [[ "$OUT" == "$first" ]] && grep -q "references/svelte.md" <<<"$OUT"; then report PASS "route is deterministic, tags legacy" "same output twice"; else report FAIL "route is deterministic, tags legacy" "$OUT"; fi
+if [[ "$OUT" == "$first" ]] && grep -q "Legacy → runes" <<<"$OUT" && ! grep -q "^read:" <<<"$OUT"; then report PASS "route is deterministic, prints the legacy section" "same output twice"; else report FAIL "route is deterministic, prints the legacy section" "$OUT"; fi
+svs route src/lib/Legacy.svelte --full; expect "route --full keeps the old file list" 0 "$RC" "$OUT" "references/svelte.md"
+
+echo "── merged start ────────────────────────────────────────────"
+make_project m
+svs start "src/lib/**" --kind refactor --files src/lib/Legacy.svelte; expect "start --files = doctor+env+start+route" 0 "$RC" "$OUT" "baseline="
+for pat in "^svelte 5" "Legacy → runes"; do grep -q "$pat" <<<"$OUT" && report PASS "merged start prints /$pat/" "" || report FAIL "merged start prints /$pat/" "$OUT"; done
+P="$WORK/a"
 
 echo "── verify: D1 baseline, gate, scope, pass limit ────────────"
 svs verify src/lib/Legacy.svelte; expect "pre-existing legacy findings do not block" 0 "$RC" "$OUT" "pre-existing"

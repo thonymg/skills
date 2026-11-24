@@ -1,20 +1,12 @@
 ---
 name: plan-feat
 description: >-
-  Produce module-level implementation plans for a NEW feature or
-  application — markdown plan files in a per-feature folder, never code.
-  Takes a free prompt, a *.md file, or a folder of *.md docs;
-  cross-checks project docs against each other and against the code
-  before planning, splits large scope into modules, and writes one
-  directive plan file per module (needs, order, checks, relations,
-  vigilance points, Gherkin scenarios, glossed invariants) with a
-  progress tracker and critique rounds. Scales to a whole application
-  via staged batches. Use when the user asks for an implementation plan,
-  to plan a new feature or app, un plan d'implémentation, plan de
-  feature, découpage en modules, planifier une application, or invokes
-  "/plan-feat". Planning only — never implements. NOT for modifying,
-  extending, or updating an existing feature or its plans — use the
-  sibling skill plan-update for that.
+  Module-level implementation plans for a NEW feature or application —
+  markdown plan files per module with tracker and critique rounds, never code.
+  Takes a prompt, a *.md file or a folder of docs. Use for an implementation
+  plan, plan a new feature or app, un plan d'implémentation, plan de feature,
+  découpage en modules, planifier une application, or /plan-feat. Planning
+  only. NOT for changing an existing feature or its plans: use plan-update.
 ---
 
 # plan-feat — module-level implementation plans

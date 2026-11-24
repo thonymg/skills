@@ -116,41 +116,27 @@ fetchUserOrderList  →  fetch | User | Order | List
 
 ## MECHANICAL CHECK — run the linter
 
-The protocol above is the judgment half. The deterministic half is scripted — run it
-**after** the protocol, not instead of it: a clean linter run does not mean the names
-are right (see what it cannot check, below).
+The protocol above is the judgment half; the scripted half runs **after** it, not instead
+of it — a clean run does not mean the names are right.
 
 ```bash
-<skill-dir>/linter/lint.sh <file-or-dir> [--since <ref>] [--json] [--only CHECK]
+<skill-dir>/linter/lint.sh <file-or-dir> [--since HEAD] [--json]
 ```
 
-Run it **after writing or renaming identifiers** (pass the single file, not the repo),
-when the user asks to audit a file/folder/project, and before reporting a rename as done.
-Zero dependency (Perl 5), read-only — it never writes to the project.
-Exit 0 clean, 1 on error, 2 on a usage problem (missing target, unknown check).
+Run it after writing or renaming identifiers (the single file, not the repo), on an audit
+request, and before reporting a rename as done. Exit 0 clean · 1 error · 2 usage.
 
-- **Refactor or audit → no `--since`.** Every finding is in scope, errors and `VOCAB?`
-  warnings alike: rename until the run is clean, updating every call site (see
-  « Renaming an existing identifier » below).
-- **Scoped change (a feature, a bug fix) in an existing file → `--since HEAD`.** It
-  shows only what this change introduced; pre-existing violations go into the report
-  for the refactor, not into this diff — a drive-by rename breaks callers the change
-  never meant to touch.
-- `--json` returns the counts **and** each finding (`rule`, `file`, `line`, `name`,
-  `message`) — prefer it to keep output short.
+- **Refactor or audit → no `--since`**: every finding is in scope; rename until clean,
+  updating every call site.
+- **Scoped change in an existing file → `--since HEAD`**: only what this change
+  introduced; pre-existing violations go into the report, not into this diff.
+- `--json` keeps output short. **Errors** (`CASING` `SCREAMING` `PREFIX` `COMPOUND`
+  `VAGUE` `NUMBERED` `SUFFIX` `STANDALONE`) are fixed before delivering; **warnings**
+  (`VOCAB?` `UNIT` `ENTITY?`) get an approved word or a `custom.md` proposal.
 
-| Severity | Rules | What to do |
-|:---------|:------|:-----------|
-| **error** | `CASING` `SCREAMING` `PREFIX` `COMPOUND` `VAGUE` `NUMBERED` `SUFFIX` `STANDALONE` | fix before delivering |
-| **warning** | `VOCAB?` (word outside the vocabulary), `UNIT` (time unit unstated), `ENTITY?` | pick an approved word, or propose it for `custom.md` |
-
-Framework-imposed names are exempt: Rails `*_params` / `current_*` / `to_*`, Python
-`@property`, exception classes, file-routing names (`[id].tsx`, `_app.tsx`, `+page.ts`).
-
-The linter checks declared identifiers only. It cannot check, and you still must:
-`get` vs `fetch` vs `find`, contextual redundancy (`user.getUserName()`), whether the
-chosen entity is the right one, and identifiers it does not extract (parameters, local
-variables inside functions, object-literal methods, multi-line signatures).
+It checks declared identifiers only. You still judge `get` vs `fetch` vs `find`,
+contextual redundancy, the right entity, and identifiers it does not extract (parameters,
+locals, object-literal methods). Rules, flags and exemptions: `linter/README.md`.
 
 ---
 
@@ -187,29 +173,16 @@ These words appear in several categories. Resolve them with this table:
 
 ## RENAMING AN EXISTING IDENTIFIER — use the codebase graph
 
-Grep misses re-exports, aliases, and cross-service callers. If
-`codebase-memory-mcp` is available:
+Grep misses re-exports, aliases and cross-service callers. With `codebase-memory-mcp`
+(a stale index gives false « zero hits »: `index_status`, re-index if needed):
+`search_graph(name_pattern=".*oldName.*")` for every occurrence, `trace_path(function_name="oldName", direction="both", depth=3)`
+for callers and callees, rename every site, then `search_graph` again — zero hits = clean.
+No MCP → Grep the repo and check re-export / barrel files by hand.
 
 MCP names are bare, not callable as written. Prefix `cbm_` under pi,
 `mcp__codebase-memory-mcp__` under Claude Code. Under pi, `trace_path`,
 `query_graph`, `detect_changes`, `get_architecture` and `get_graph_schema`
 need one `cbm_search_tools` call first.
-
-0. `index_status` (or `list_projects`) — confirm the repo is indexed. Not
-   indexed yet → run `index_repository` first; a stale index (files changed
-   since last index) gives wrong "zero remaining hits" results in step 3, so
-   re-index rather than trust it blindly.
-1. `search_graph(name_pattern=".*oldName.*")` — every declaration/occurrence
-   of the current name, repo-wide (not just the current file).
-2. `trace_path(function_name="oldName", direction="both", depth=3)` — every
-   caller and callee, including cross-service edges a text search won't see.
-3. Rename the declaration and every site the graph returned, then re-run
-   `search_graph` for the old name — zero remaining hits confirms a clean
-   rename.
-
-No MCP available, or indexing isn't worth it for a one-off rename → fall
-back to Grep across the repo, and check the language's re-export /
-barrel-file conventions by hand.
 
 ## EXTENDING THE VOCABULARY
 

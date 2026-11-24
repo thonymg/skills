@@ -157,7 +157,7 @@ def check_scripts_tested(skill, skill_dir):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max-description", type=int, default=1200)
+    parser.add_argument("--max-description", type=int, default=600)
     args = parser.parse_args()
 
     problems = []

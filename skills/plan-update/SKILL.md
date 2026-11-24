@@ -1,20 +1,13 @@
 ---
 name: plan-update
 description: >-
-  Produce module-level update plans for changing an existing feature or
-  adding features to an existing system — markdown plan files, never
-  code. Reuses plan-feat's discipline and adds what change requires:
-  current-state reconnaissance, impact analysis with a ripple set, delta
-  plans (current → target), regression vigilance, data migration,
-  backward compatibility, deprecation, and blocking coherence gates.
-  Revises existing plan files in place, keeping the set coherent. Use
-  when the user asks to plan a change to an existing feature (e.g. "plan
-  a change to the checkout flow"), to update or evolve a feature,
-  modifier une feature, faire évoluer une feature, ajouter une feature à
-  l'existant, plan de modification, plan d'évolution, or invokes
-  "/plan-update". Planning only — never implements. NOT for green-field
-  features with no existing plans or code — use the sibling skill
-  plan-feat for that.
+  Module-level update plans for changing an existing feature or adding to an
+  existing system — markdown plan files with impact analysis, delta plans,
+  migration and coherence gates, never code. Use to plan a change to an
+  existing feature, update or evolve a feature, modifier une feature, faire
+  évoluer une feature, ajouter une feature à l'existant, plan de modification,
+  plan d'évolution, or /plan-update. Planning only. NOT for green-field
+  features: use plan-feat.
 ---
 
 # plan-update — update plans for existing features

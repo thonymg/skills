@@ -6,7 +6,7 @@
 //
 //   0 pass · 1 fail or unverified · 2 usage/environment · 3 only pre-existing suite failures
 //
-// Commands: doctor [--install] · env · pb · start <glob…> [--kind K] [--resume] · route <file…>
+// Commands: doctor [--install] · env [--json] · pb · start <glob…> [--kind K] [--files <f…>] [--resume] · route <file…> [--full]
 //           verify <file…> [--json] · step <name> -- <cmd…> · waive <rule> <target> <reason…>
 //           schema · access [--init] · migrate-check · legacy-report · finish
 //           hook post-tool-use|stop · gen-references [--check]
@@ -559,16 +559,17 @@ function cmdDoctor(args) {
   if (args.includes('--install')) tools(fs.existsSync(path.join(STATE_DIR, 'env.json')) ? loadEnv() : detectEnv());
   for (const p of problems) console.error(`✗ ${p}`);
   if (problems.length) return 2;
-  console.log('pbg doctor: ok (graph: use codebase-memory if connected; pbg itself does not need it)');
+  if (!args.includes('--quiet')) console.log('pbg doctor: ok (graph: use codebase-memory if connected; pbg itself does not need it)');
   return 0;
 }
 
-function cmdEnv() {
+function cmdEnv(args = []) {
   const env = detectEnv();
   if (!env.mode) die(1, 'pbg env: no PocketBase found — neither a go.mod requiring (github.com|ganigeorgiev.com)/pocketbase/pocketbase, nor ./pocketbase, nor .pocketbase-version (no default version is assumed).');
   fs.mkdirSync(STATE_DIR, { recursive: true });
   writeJSON(path.join(STATE_DIR, 'env.json'), env);
-  console.log(JSON.stringify(sortKeys(env), null, 2));
+  if (args.includes('--json')) console.log(JSON.stringify(sortKeys(env), null, 2));
+  else console.log(core.formatEnvLine([['pocketbase', env.pocketbase], ['mode', env.mode], ['module', env.modulePath], ['go', env.goLine], ['migrations', env.migrationsDir], ['jsvm', env.jsvm]]) + ` (full: pbg env --json)`);
   return 0;
 }
 
@@ -606,14 +607,26 @@ function routeTags(env, files) {
   }
   return [...tags].sort();
 }
-function cmdRoute(files) {
+// tag -> [file, heading prefix]; no heading = whole file. A renamed heading throws in printSections.
+const SECTIONS = {
+  go: [['references/framework.md', 'Module and toolchain'], ['references/framework.md', 'Which app to use']],
+  hooks: [['references/framework.md', 'Hooks and routing']],
+  test: [['references/framework.md', 'Testing a PocketBase Go app']],
+  migrations: [['references/schema.md', 'Migrations (Go)']],
+  access: [['references/schema.md', 'API rules and the access matrix']],
+};
+function cmdRoute(args) {
+  const full = args.includes('--full');
+  const files = args.filter((a) => !a.startsWith('--'));
   if (!files.length) die(2, 'pbg route: give the files you will touch.');
   const env = loadEnv();
   const tags = routeTags(env, files);
   const refs = [...new Set(tags.map((t) => REFERENCES[t]).filter(Boolean))].sort();
   console.log(`tags: ${tags.join(' ') || '(none)'}`);
-  console.log('read:');
-  for (const r of refs) console.log(`  ${posix(path.join(SKILL, r))}`);
+  if (full) {
+    console.log('read:');
+    for (const r of refs) console.log(`  ${posix(path.join(SKILL, r))}`);
+  } else core.printSections(SKILL, tags, SECTIONS);
   const items = CHECKLIST.filter((c) => tags.includes(c.when));
   if (items.length) { console.log('review checklist (not blocking, reported by finish):'); for (const c of items) console.log(`  [${c.id}] ${c.text}`); }
   const s = loadState();
@@ -621,7 +634,14 @@ function cmdRoute(files) {
   return 0;
 }
 
+function analyzerDoc(rule) {
+  const name = rule.split('/').pop();
+  const src = fs.readFileSync(path.join(PBCHECK, 'checks', 'checks.go'), 'utf8');
+  return [...src.matchAll(/newAnalyzer\("(\w+)",\s*\n?\s*"([^"]+)"/g)].find((m) => m[1] === name)?.[2];
+}
+
 function cmdVerify(args) {
+  const only = core.takeFlag(args, '--rule');
   const json = args.includes('--json');
   const files = args.filter((a) => !a.startsWith('--')).map(rel);
   if (!files.length) die(2, 'pbg verify: give the files to check.');
@@ -652,9 +672,12 @@ function cmdVerify(args) {
   const passes = core.recordVerify(s, perFile, ok);
   if (json) console.log(JSON.stringify(sortKeys({ ok, passes, ...report }), null, 2));
   else {
-    for (const f of report.gate) console.log(`GATE    ${f.file}:${f.line}:${f.col}  ${f.tool}/${f.rule}  ${f.message}`);
-    for (const f of report.waived) console.log(`WAIVED  ${f.file}:${f.line}:${f.col}  ${f.tool}/${f.rule}`);
-    for (const f of report.review) console.log(`REVIEW  ${f.file}:${f.line}:${f.col}  ${f.tool}/${f.rule}  ${f.message}`);
+    const ruleOf = (f) => `${f.tool}/${f.rule}`;
+    if (only) {
+      const known = [...report.gate, ...report.waived, ...report.review].map(ruleOf);
+      if (!known.includes(only)) die(2, `pbg verify: no finding for rule \`${only}\`. Rules with findings: ${[...new Set(known)].join(', ') || '(none)'}${known.length ? `. Closest: ${core.suggestOptions(only, known).join(', ')}` : ''}.`);
+    }
+    core.printFindings(report, { cli: 'pbg', files, rule: only, ruleOf, whereOf: (f) => `${f.file}:${f.line}:${f.col}`, fixOf: analyzerDoc });
     if (report.preExisting) console.log(`(${report.preExisting} pre-existing finding(s) in these files: not blocking, listed by \`pbg legacy-report\`)`);
     console.log(`verify: ${ok ? 'PASS' : `FAIL (${report.gate.length} new gate finding(s), pass ${passes}/${core.MAX_PASSES})`}`);
   }
@@ -853,9 +876,21 @@ function cmdGenReferences(args) {
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
+// `start --files <f…>` = doctor + env + start + route in one call; without --files it is the plain start.
+async function cmdStart(args) {
+  const files = core.takeList(args, '--files');
+  if (!files.length) return core.cmdStart(args);
+  if (!args.includes('--resume')) {
+    const failed = cmdDoctor(['--quiet']) || cmdEnv([]);
+    if (failed) return failed;
+  }
+  const code = core.cmdStart(args);
+  return code || cmdRoute(files);
+}
+
 const [command, ...args] = process.argv.slice(2);
 const commands = {
-  doctor: cmdDoctor, env: cmdEnv, pb: cmdPb, start: (a) => core.cmdStart(a), route: cmdRoute, verify: cmdVerify,
+  doctor: cmdDoctor, env: cmdEnv, pb: cmdPb, start: cmdStart, route: cmdRoute, verify: cmdVerify,
   step: core.cmdStep, waive: core.cmdWaive, schema: cmdSchema, access: cmdAccess, 'migrate-check': cmdMigrateCheck,
   'legacy-report': cmdLegacyReport, finish: cmdFinish,
   hook: (a) => core.cmdHook(a, { script: fileURLToPath(import.meta.url), matches: (f) => f.endsWith('.go') }),

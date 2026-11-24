@@ -1,16 +1,14 @@
 ---
 name: fix-root
-description: Bug fix workflow, root cause first. A red repro before any
-  diagnosis; a regression goes to git bisect, anything else to a short or
-  full track; a script-checked hypothesis ledger stops loops; a failing test
-  before the fix; a minimal fix proven at the root for every caller; a full
-  suite gate. Use to fix a bug, debug an error, stack trace or exception,
-  find a root cause, investigate a 4xx/5xx or unexpected status, analyse a
-  bug ticket, or a regression (it worked before, broken since a deploy,
-  release or migration, find the commit that broke it, git bisect) — also
-  corrige ce bug, ça marchait avant, pourquoi ça échoue, a crash report
-  with no explicit ask (X plante, crashes, throws), or /fix-root. Not
-  for refactoring without a bug.
+description: >-
+  Bug fix workflow, root cause first: red repro, then git bisect for a
+  regression, short or full track otherwise, failing test before the fix,
+  minimal fix proven for every caller. Use to fix a bug, debug an error, stack
+  trace or exception, find a root cause, investigate a 4xx/5xx, analyse a bug
+  ticket, or a regression (it worked before, broken since a deploy or
+  migration, git bisect) — also corrige ce bug, ça marchait avant, pourquoi ça
+  échoue, X plante, crashes, throws, or /fix-root. Not for refactoring without
+  a bug.
 ---
 
 # fix-root — repro first, root cause second, proof third

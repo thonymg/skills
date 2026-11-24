@@ -65,11 +65,17 @@ P="$WORK/none"; mkdir -p "$P"; printf 'module none\n\ngo 1.26\n' > "$P/go.mod"
 pbg env;                         expect "env without PocketBase = exit 1 (no default)" 1 "$RC" "$OUT" "no PocketBase found"
 P="$WORK/a"; cp -R "$FIXTURE" "$P"; (cd "$P" && git init -q -b main && git add -A && git commit -qm init)
 pbg start "**";                  expect "start before env = exit 2" 2 "$RC" "$OUT"
-pbg env;                         expect "env reads go.mod (framework, new host, version)" 0 "$RC" "$OUT" '"modulePath": "ganigeorgiev.com/pocketbase/pocketbase"'
+pbg env --json;                  expect "env reads go.mod (framework, new host, version)" 0 "$RC" "$OUT" '"modulePath": "ganigeorgiev.com/pocketbase/pocketbase"'
 pbg start "**" --kind refactor;  expect "start" 0 "$RC" "$OUT" "baseline="
+P="$WORK/m"; cp -R "$FIXTURE" "$P"; (cd "$P" && git init -q -b main && git add -A && git commit -qm init)
+pbg start "**" --kind refactor --files main.go; expect "start --files = doctor+env+start+route" 0 "$RC" "$OUT" "baseline="
+grep -q "^pocketbase 0\." <<<"$OUT" && report PASS "merged start prints the env line" "" || report FAIL "merged start prints the env line" "$OUT"
+P="$WORK/a"
+pbg route main.go --full;        expect "route --full keeps the old file list" 0 "$RC" "$OUT" "references/framework.md"
+printf 'package main\n\nfunc plain() {}\n' > "$P/plain.go"; pbg route plain.go; rm "$P/plain.go"; if grep -q "Which app to use" <<<"$OUT" && ! grep -q "The hook chain" <<<"$OUT"; then report PASS "a plain .go file gets only the base sections" ""; else report FAIL "a plain .go file gets only the base sections" "$OUT"; fi
 pbg route main.go migrations/1700000000_create_posts.go; first="$OUT"
 pbg route main.go migrations/1700000000_create_posts.go
-if [[ "$OUT" == "$first" ]] && grep -q "references/schema.md" <<<"$OUT" && grep -q "references/framework.md" <<<"$OUT"; then report PASS "route is deterministic and tags hooks/migrations" ""; else report FAIL "route is deterministic and tags hooks/migrations" "$OUT"; fi
+if [[ "$OUT" == "$first" ]] && grep -q "Migrations (Go)" <<<"$OUT" && grep -q "Hooks and routing" <<<"$OUT" && ! grep -q "^read:" <<<"$OUT"; then report PASS "route is deterministic, prints hooks/migrations sections" ""; else report FAIL "route is deterministic, prints hooks/migrations sections" "$OUT"; fi
 
 echo "── verify: code gates, baseline, JSVM refusal ──────────────"
 pbg verify main.go;              expect "untouched app passes" 0 "$RC" "$OUT" "verify: PASS"
